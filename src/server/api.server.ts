@@ -69,8 +69,13 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
       if (request.method !== "POST" && request.method !== "GET")
         throw new ApiError(405, "METHOD", "Método não permitido.");
       if (request.method === "POST") {
+        // Atrás de um proxy reverso (Cloudflare Tunnel, Railway, Render...), a conexão até o
+        // Node é HTTP simples; o host já chega correto em url.host, mas o protocolo público
+        // real (https) só aparece em X-Forwarded-Proto.
+        const forwardedProto = request.headers.get("x-forwarded-proto");
+        const expectedOrigin = forwardedProto ? `${forwardedProto}://${url.host}` : url.origin;
         if (
-          request.headers.get("origin") !== url.origin ||
+          request.headers.get("origin") !== expectedOrigin ||
           !request.headers.get("content-type")?.startsWith("application/json")
         )
           throw new ApiError(403, "ORIGIN", "Origem da solicitação não autorizada.");

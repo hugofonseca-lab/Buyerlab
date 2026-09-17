@@ -323,6 +323,30 @@ describe("API persistente e autorizada", () => {
     for (let i = 0; i < 61; i++) last = (await call(null, `/api/simulations/${id}`)).status;
     expect(last).toBe(429);
   });
+  it("atrás de proxy reverso, valida origem por X-Forwarded-Proto sem afrouxar o CSRF", async () => {
+    // O host publico chega correto via cabecalho Host padrao (refletido na propria URL da
+    // requisicao); e o proxy (Cloudflare Tunnel, Railway...) so acrescenta X-Forwarded-Proto,
+    // pois a conexao ate o Node e HTTP simples mesmo quando o publico acessa por https.
+    const { api } = setup();
+    const proxied = (host: string, origin: string, forwardedProto?: string) =>
+      api(
+        new Request(`http://${host}/api/simulations`, {
+          method: "POST",
+          headers: {
+            origin,
+            "content-type": "application/json",
+            "idempotency-key": crypto.randomUUID(),
+            ...(forwardedProto ? { "x-forwarded-proto": forwardedProto } : {}),
+          },
+          body: JSON.stringify({ action: "start", config }),
+        }),
+      );
+    const host = "meu-tunel.trycloudflare.com";
+    expect((await proxied(host, `https://${host}`, "https")).status).toBe(200);
+    expect((await proxied(host, `http://${host}`, "https")).status).toBe(403);
+    expect((await proxied(host, "https://evil.example", "https")).status).toBe(403);
+    expect((await proxied(host, `https://${host}`)).status).toBe(403);
+  });
   it("falha do provedor preserva turno e gera relatório provisório", async () => {
     class Broken extends MockSimulationProvider {
       override async reply(): Promise<string> {
