@@ -1,0 +1,14 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS scenarios(id TEXT NOT NULL, version TEXT NOT NULL, blueprint TEXT NOT NULL, PRIMARY KEY(id, version));
+CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS simulation_runs(id TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES sessions(id), scenario_version TEXT NOT NULL, engine_version TEXT NOT NULL, seed TEXT NOT NULL, mode TEXT NOT NULL, difficulty TEXT NOT NULL, profile TEXT NOT NULL, turn INTEGER NOT NULL, status TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES simulation_runs(id), turn INTEGER NOT NULL, payload TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS state_snapshots(run_id TEXT NOT NULL REFERENCES simulation_runs(id), turn INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(run_id, turn));
+CREATE TABLE IF NOT EXISTS simulation_events(run_id TEXT NOT NULL REFERENCES simulation_runs(id), event_id TEXT NOT NULL, turn INTEGER NOT NULL, probability REAL NOT NULL, draw REAL NOT NULL, occurred INTEGER NOT NULL, PRIMARY KEY(run_id, event_id, turn));
+CREATE TABLE IF NOT EXISTS final_offers(run_id TEXT PRIMARY KEY REFERENCES simulation_runs(id), payload TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS evaluations(run_id TEXT PRIMARY KEY REFERENCES simulation_runs(id), payload TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS share_tokens(token_hash TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES simulation_runs(id), expires_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS idempotency(owner TEXT NOT NULL REFERENCES sessions(id), key TEXT NOT NULL, fingerprint TEXT NOT NULL, response TEXT NOT NULL, PRIMARY KEY(owner,key));
+CREATE TABLE IF NOT EXISTS rate_limits(bucket TEXT NOT NULL, window INTEGER NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(bucket,window));
+INSERT OR IGNORE INTO schema_migrations VALUES(1, datetime('now'));
