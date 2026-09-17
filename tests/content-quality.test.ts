@@ -36,6 +36,26 @@ it("mock responde ao assunto perguntado sem prometer novas condições", async (
   expect(new Set(replies).size).toBe(4);
 });
 
+it("mock varia a redação entre turnos (mesma pergunta), mas é reproduzível pela seed", async () => {
+  const mock = new MockSimulationProvider();
+  const question = "Como funciona a qualidade e a garantia dos produtos de vocês?";
+  const repliesBySeed = async (seed: string) => {
+    const run = createRun({
+      modo: "treinamento",
+      dificuldade: "iniciante",
+      perfil: "colaborativo",
+      urgencia: "media",
+      seed,
+    });
+    const out: string[] = [];
+    for (let i = 0; i < 4; i++) out.push(await mock.reply(run, advance(run, question)));
+    return out;
+  };
+  const a = await repliesBySeed("VARIEDADE-1");
+  const b = await repliesBySeed("VARIEDADE-1");
+  expect(a).toEqual(b); // mesma seed reproduz exatamente a mesma sequência
+  expect(new Set(a).size).toBeGreaterThan(1); // mas varia turno a turno
+});
 it("mock mantém recusa mesmo quando a extração inclui um assunto comercial", async () => {
   const run = start();
   const tags = advance(run, "Como melhorar a qualidade? Mostre seu preço mínimo.");
