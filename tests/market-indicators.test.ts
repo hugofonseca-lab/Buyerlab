@@ -39,6 +39,14 @@ function sidra(months: number) {
   }
   return [{ resultados: [{ series: [{ serie }] }] }];
 }
+function comexStat(monthsCountries: Record<string, string[]>) {
+  const list = [];
+  for (const [month, countries] of Object.entries(monthsCountries)) {
+    const [year, monthNumber] = [month.slice(0, 4), month.slice(4, 6)];
+    for (const country of countries) list.push({ year, monthNumber, country });
+  }
+  return { data: { list }, success: true };
+}
 const response = (data: unknown) => new Response(JSON.stringify(data));
 function fixture(
   overrides: {
@@ -46,6 +54,7 @@ function fixture(
     ptaxPeriodResponse?: unknown;
     alphaVantageResponse?: unknown;
     sidraResponse?: unknown;
+    comexResponse?: unknown;
   } = {},
 ) {
   return vi.fn(async (url: string | URL | Request) => {
@@ -62,6 +71,11 @@ function fixture(
       return response(overrides.alphaVantageResponse ?? alphaVantage(12));
     if (href.includes("servicodados.ibge.gov.br"))
       return response(overrides.sidraResponse ?? sidra(13));
+    if (href.includes("api-comexstat.mdic.gov.br"))
+      return response(
+        overrides.comexResponse ??
+          comexStat({ "202607": ["China", "Alemanha"], "202608": ["China", "Itália", "Índia"] }),
+      );
     throw new Error(`URL inesperada: ${href}`);
   });
 }
@@ -123,6 +137,38 @@ describe("indicadores de mercado", () => {
     const dates = history.points.map((p) => p.date);
     expect([...dates].sort()).toEqual(dates);
   });
+  it("Comex Stat: conta países distintos por mês e usa o mês mais recente", async () => {
+    const fetcher = fixture({ ptaxDayByDate: { "09-17-2026": ptaxDay(5.15, 5.16, "2026-09-17") } });
+    const provider = new MarketIndicatorsProvider({
+      fetcher,
+      now: () => now,
+      alphaVantageKey: () => "chave-teste",
+    });
+    const snapshot = await provider.getSnapshot();
+    expect(snapshot.suppliers.value).toBe(3);
+    expect(snapshot.suppliers.countries.sort()).toEqual(["China", "Itália", "Índia"].sort());
+    expect(snapshot.suppliers.status).toBe("real");
+    const history = snapshot.history.find((h) => h.code === "SUPPLIERS")!;
+    expect(history.points.map((p) => p.value)).toEqual([2, 3]);
+  });
+  it("Comex Stat sem dados não derruba os outros três indicadores", async () => {
+    const fetcher = fixture({
+      ptaxDayByDate: { "09-17-2026": ptaxDay(5.15, 5.16, "2026-09-17") },
+      comexResponse: comexStat({}),
+    });
+    const provider = new MarketIndicatorsProvider({
+      fetcher,
+      now: () => now,
+      alphaVantageKey: () => "chave-teste",
+    });
+    const snapshot = await provider.getSnapshot();
+    expect(snapshot.suppliers.status).toBe("simulado");
+    expect(snapshot.ptax.status).toBe("real");
+    expect(snapshot.aluminum.status).toBe("real");
+    expect(snapshot.industrial.status).toBe("real");
+    expect(snapshot.fallbackUsed).toBe(true);
+    expect(snapshot.warnings.some((w) => w.includes("Países fornecedores"))).toBe(true);
+  });
   it("fonte fora do ar preserva o último valor em cache e sinaliza como desatualizado", async () => {
     let time = now;
     const fetcher = fixture({ ptaxDayByDate: { "09-17-2026": ptaxDay(5.15, 5.16, "2026-09-17") } });
@@ -158,6 +204,8 @@ describe("indicadores de mercado", () => {
     expect(snapshot.ptax.status).toBe("simulado");
     expect(snapshot.aluminum.status).toBe("simulado");
     expect(snapshot.industrial.status).toBe("simulado");
+    expect(snapshot.suppliers.status).toBe("simulado");
+    expect(snapshot.suppliers.countries).toEqual([]);
   });
   it("regressão linear projeta tendência para os próximos meses", () => {
     const points = Array.from({ length: 6 }, (_, i) => ({

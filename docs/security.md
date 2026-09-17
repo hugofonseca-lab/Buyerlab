@@ -19,4 +19,4 @@ Não versionar `.env`, `.data`, cookies, tokens ou logs. HTTPS e permissões de 
 
 Expiração do acesso não apaga registros. Retenção, exclusão individual, revogação antecipada de links, antiabuso distribuído e backup automatizado exigem evolução antes de uso público amplo. Não inserir informações reais/proprietárias.
 
-Testes cobrem ataques solicitados, schema inválido, timeout, fallback, sessões, CSRF, tamanho, limites e compartilhamento. Isso não equivale a auditoria completa. A integração real OpenAI requer chave e modelo válidos; não foi exercitada com credenciais reais neste ambiente.
+Testes cobrem ataques solicitados, schema inválido, timeout, fallback, sessões, CSRF, tamanho, limites e compartilhamento. Isso não equivale a auditoria completa. A integração real OpenAI ou Gemini requer chave e modelo válidos; não foi exercitada com credenciais reais neste ambiente (a integração Gemini foi validada por tipos do SDK oficial e testes com mocks, não por uma chamada real).

@@ -6,6 +6,7 @@ import type {
   IndicatorValue,
   MarketIndicatorsSnapshot,
   PtaxValue,
+  SuppliersValue,
 } from "../domain/market-indicators";
 
 /**
@@ -21,6 +22,9 @@ import type {
  *   base 2022=100), variável 12606 ("Número-índice"), classificação 544/129314 ("1 Indústria
  *   geral"), território N1[1] (Brasil). O IBGE reformulou a PIM-PF em 2021 (base 2022=100); se a
  *   tabela for descontinuada novamente, atualize os IDs aqui e em docs/market-data.md.
+ * - Países fornecedores: MDIC Comex Stat (comércio exterior brasileiro), importação por país da
+ *   NCM 7606.12.90 (chapas de ligas de alumínio, espessura > 0,2mm) — número de países distintos
+ *   que exportaram esse material para o Brasil no mês mais recente. Público, sem chave.
  */
 
 const BCB = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/";
@@ -28,6 +32,8 @@ const SIDRA_TABLE = 8888;
 const SIDRA_VARIABLE = 12606;
 const SIDRA_CLASSIFICATION = "544[129314]";
 const SIDRA_LOCALITY = "N1[1]";
+const COMEX_STAT_URL = "https://api-comexstat.mdic.gov.br/general";
+const COMEX_NCM = "76061290";
 
 const brazilDay = (date: Date) =>
   date.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -98,11 +104,17 @@ const sidraSchema = z
     }),
   )
   .min(1);
+const comexSchema = z.object({
+  data: z.object({
+    list: z.array(z.object({ year: z.string(), monthNumber: z.string(), country: z.string() })),
+  }),
+});
 
 const STATIC_FALLBACK = {
   ptax: { buy: 5.19, sell: 5.2 },
   aluminum: 2500,
   industrial: 100,
+  suppliers: 8,
 };
 
 export interface MarketIndicatorsFetchers {
@@ -130,10 +142,11 @@ export class MarketIndicatorsProvider {
     });
     return structuredClone(await this.pending);
   }
-  private async json(url: string): Promise<unknown> {
+  private async json(url: string, init?: RequestInit): Promise<unknown> {
     const response = await this.fetcher(url, {
       signal: AbortSignal.timeout(8000),
       redirect: "error",
+      ...init,
     });
     if (!response.ok) throw new Error(`Fonte indisponível (HTTP ${response.status}).`);
     return response.json();
@@ -243,6 +256,54 @@ export class MarketIndicatorsProvider {
       history: points.slice(-12),
     };
   }
+  private async fetchSuppliers(
+    today: string,
+  ): Promise<{ value: SuppliersValue; history: IndicatorPoint[] }> {
+    const from = addMonths(`${monthKey(today)}-01`, -13).slice(0, 7);
+    const to = monthKey(today);
+    const data = comexSchema.parse(
+      await this.json(COMEX_STAT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flow: "import",
+          monthDetail: true,
+          period: { from, to },
+          filters: [{ filter: "ncm", values: [COMEX_NCM] }],
+          details: ["country"],
+          metrics: ["metricKG"],
+        }),
+      }),
+    );
+    const byMonth = new Map<string, Set<string>>();
+    for (const row of data.data.list) {
+      const month = `${row.year}-${row.monthNumber}`;
+      if (!byMonth.has(month)) byMonth.set(month, new Set());
+      byMonth.get(month)!.add(row.country);
+    }
+    const points = [...byMonth.entries()]
+      .map(([month, countries]) => ({ date: `${month}-01`, value: countries.size }))
+      .filter((p) => p.value > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const latest = points.at(-1);
+    if (!latest) throw new Error("Comex Stat sem dados válidos de importação.");
+    const countries = [...(byMonth.get(latest.date.slice(0, 7)) ?? [])].sort();
+    return {
+      value: {
+        code: "SUPPLIERS",
+        name: "Países fornecedores de alumínio (importação)",
+        value: latest.value,
+        countries,
+        unit: "países",
+        date: latest.date,
+        source: "MDIC — Comex Stat (importação, NCM 7606.12.90)",
+        url: "https://comexstat.mdic.gov.br/pt/geral",
+        status: "real",
+        stale: false,
+      },
+      history: points.slice(-12),
+    };
+  }
   private fallbackValue(
     code: IndicatorCode,
     name: string,
@@ -293,11 +354,13 @@ export class MarketIndicatorsProvider {
     const reasonOf = (error: unknown) =>
       error instanceof Error ? error.message : "Falha ao consultar a fonte.";
 
-    const [ptaxResult, aluminumResult, industrialResult] = await Promise.allSettled([
-      this.fetchPtax(today),
-      this.fetchAluminum(),
-      this.fetchIndustrial(),
-    ]);
+    const [ptaxResult, aluminumResult, industrialResult, suppliersResult] =
+      await Promise.allSettled([
+        this.fetchPtax(today),
+        this.fetchAluminum(),
+        this.fetchIndustrial(),
+        this.fetchSuppliers(today),
+      ]);
 
     let ptaxResolved: { value: PtaxValue; history: IndicatorPoint[] };
     if (ptaxResult.status === "fulfilled") ptaxResolved = ptaxResult.value;
@@ -348,6 +411,25 @@ export class MarketIndicatorsProvider {
       );
     }
 
+    let suppliersResolved: { value: SuppliersValue; history: IndicatorPoint[] };
+    if (suppliersResult.status === "fulfilled") suppliersResolved = suppliersResult.value;
+    else {
+      fallbackUsed = true;
+      warnings.push(`Países fornecedores: ${reasonOf(suppliersResult.reason)}`);
+      const fallback = this.fallbackValue(
+        "SUPPLIERS",
+        "Países fornecedores de alumínio (importação)",
+        "países",
+        today,
+        previousHistory("SUPPLIERS"),
+        STATIC_FALLBACK.suppliers,
+      );
+      suppliersResolved = {
+        value: { ...fallback.value, countries: [] },
+        history: fallback.history,
+      };
+    }
+
     const toHistory = (
       code: IndicatorCode,
       name: string,
@@ -366,6 +448,7 @@ export class MarketIndicatorsProvider {
       ptax: ptaxResolved.value,
       aluminum: aluminumResolved.value,
       industrial: industrialResolved.value,
+      suppliers: suppliersResolved.value,
       history: [
         toHistory("USD_BRL", "PTAX USD/BRL", "BRL/USD", ptaxResolved),
         toHistory("ALUMINUM", "Alumínio primário (FMI)", "USD/t", aluminumResolved),
@@ -374,6 +457,12 @@ export class MarketIndicatorsProvider {
           "PIM-PF — Indústria geral (Brasil)",
           "índice, base 2022=100",
           industrialResolved,
+        ),
+        toHistory(
+          "SUPPLIERS",
+          "Países fornecedores de alumínio (importação)",
+          "países",
+          suppliersResolved,
         ),
       ],
       fallbackUsed,

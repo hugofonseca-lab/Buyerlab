@@ -20,7 +20,9 @@ Snapshot simulado v1, 16/09/2026: USD/BRL 5,20; alumínio 2.500 USD/t; índice i
 
 Preço de referência = base × (1 + exposição cambial × variação cambial + exposição à commodity × variação da commodity + exposição industrial × variação industrial) + conversão + frete. Bases comparativas dos indicadores: 5,00; 2.400; 100. Exposições são definidas por material. Resultado limitado ao intervalo de 50%–200% da base. Meta é a referência; teto do comprador é 108% dela.
 
-Treinamentos novos usam o provedor externo descrito em [market-data.md](market-data.md), com cache de uma hora, fontes e datas por indicador. O snapshot estático acima permanece para avaliações, testes e fallback explicitamente identificado. Retry mantém o mercado original. A disponibilidade de alumínio diário sem chave não é garantida.
+Treinamentos novos usam o provedor externo descrito em [market-data.md](market-data.md), com cache de um dia, fontes e datas por indicador. O snapshot estático acima permanece para avaliações, testes e fallback explicitamente identificado. Retry mantém o mercado original. A disponibilidade de alumínio diário sem chave não é garantida.
+
+Desde a integração com o Alpha Vantage e o IBGE, os três indicadores do benchmark podem vir reais simultaneamente (`status: "real"` no snapshot): PTAX, alumínio (mesma fonte do painel de indicadores) e o índice de produção — este último agora é o PIM-PF de Metalurgia (categoria específica do setor que produz o material, não a indústria geral), com folga de defasagem de 100 dias por ser dado mensal.
 
 ## TCO e sourcing
 

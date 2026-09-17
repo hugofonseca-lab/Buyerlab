@@ -9,7 +9,7 @@ flowchart LR
   UI[React: briefing, chat, proposta, relatório] --> API[API / sessão HttpOnly]
   API --> Engine[State Engine]
   Blueprint[Blueprint versionado] --> Engine
-  Engine --> Actor[Supplier Actor: OpenAI ou Mock]
+  Engine --> Actor[Supplier Actor: OpenAI, Gemini ou Mock]
   Engine --> Evaluator[Evaluator determinístico]
   Actor --> Qual[Qualitativo validado por evidências]
   Evaluator --> Coach[Coach pedagógico]
@@ -22,7 +22,7 @@ flowchart LR
 - `domain/scenario.ts`: projeção pública, mandato, dossiê e pesos.
 - `server/scenario.server.ts` + `rules.server.ts`: blueprint privado v2.0.0, escada, pacotes, eventos, matriz e coeficientes.
 - `engine.server.ts`: estados, ações, PRNG, abertura, degraus e sorteios.
-- `providers.server.ts`: MockSimulationProvider, OpenAISimulationProvider, Structured Outputs e validação.
+- `providers.server.ts`: MockSimulationProvider, OpenAISimulationProvider, GeminiSimulationProvider (mesmas instruções e payload de contexto), Structured Outputs e validação.
 - `evaluator.server.ts`: viabilidade, pontuação objetiva e enumeração do melhor resultado.
 - `qualitative.server.ts`: fallback por ações e trechos observados.
 - `coach.server.ts`: relatório pedagógico.

@@ -1,4 +1,4 @@
-import { AlertTriangle, Banknote, Factory, TrendingUp } from "lucide-react";
+import { AlertTriangle, Banknote, Factory, Globe, TrendingUp } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import type { IndicatorHistory } from "@/domain/market-indicators";
 import {
@@ -97,7 +97,7 @@ export function MarketIndicatorsPanel() {
       )}
       {data && (
         <>
-          <dl className="mt-5 grid gap-3 sm:grid-cols-3">
+          <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Metric
               icon={<Banknote />}
               label="Câmbio USD/BRL (PTAX)"
@@ -115,6 +115,17 @@ export function MarketIndicatorsPanel() {
               label="Produção industrial (PIM-PF Brasil)"
               value={data.industrial.value.toLocaleString("pt-BR")}
               indicator={data.industrial}
+            />
+            <Metric
+              icon={<Globe />}
+              label="Países fornecedores (importação)"
+              value={`${data.suppliers.value} ${data.suppliers.value === 1 ? "país" : "países"}`}
+              indicator={data.suppliers}
+              detail={
+                data.suppliers.countries.length > 0
+                  ? data.suppliers.countries.join(", ")
+                  : undefined
+              }
             />
           </dl>
           {data.warnings.length > 0 && (
@@ -140,7 +151,7 @@ export function MarketIndicatorsPanel() {
             Estimativa baseada em tendência histórica (regressão linear sobre os últimos 12 meses),
             não é uma previsão oficial de mercado.
           </p>
-          <div className="mt-3 grid gap-4 sm:grid-cols-3">
+          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {data.history.map((h) => (
               <div key={h.code}>
                 <p className="text-xs font-medium text-muted-foreground">{h.name}</p>
@@ -158,6 +169,7 @@ function Metric({
   label,
   value,
   indicator,
+  detail,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -169,6 +181,7 @@ function Metric({
     source: string;
     url: string | null;
   };
+  detail?: string | undefined;
 }) {
   return (
     <div className="rounded-md bg-muted/50 p-3">
@@ -177,6 +190,7 @@ function Metric({
         {label}
       </dt>
       <dd className="mt-1 font-display text-lg font-bold">{value}</dd>
+      {detail && <p className="mt-0.5 text-[11px] text-muted-foreground">{detail}</p>}
       <p className="mt-1 text-[11px] text-muted-foreground">
         {indicator.stale
           ? "Dado desatualizado"

@@ -119,7 +119,10 @@ export function toLovableSnapshot(snapshot: RunSnapshot): LovableSnapshot {
       ptax: indicator("USD_BRL"),
       aluminumBenchmarkUsdTon: indicator("ALUMINUM"),
       industrialIndex: indicator("IPP"),
-      industrialIndexLabel: "Índice industrial simulado",
+      industrialIndexLabel:
+        i.market.indicators.find((x) => x.code === "IPP")?.status === "real"
+          ? "PIM-PF — Metalurgia (Brasil)"
+          : "Índice industrial simulado",
       explanation:
         "A referência combina preço-base, exposição cambial, commodity e índice industrial, mais conversão e frete. Os valores são congelados com a seed.",
       disclaimer:
