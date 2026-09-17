@@ -2,7 +2,8 @@ import { z } from "zod";
 import { Store, digest } from "./store.server";
 import { commandSchema } from "./validation.server";
 import {
-  advanceWithTags,
+  advanceState,
+  commitOffer,
   createRun,
   makeMessage,
   publicSnapshot,
@@ -204,22 +205,26 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
               );
               if (enriched.value.length > 0) tags = enriched.value;
             }
-            advanceWithTags(stored, command.text, tags);
+            const envelope = advanceState(stored, command.text, tags);
             const output = await withFallback(
-              () => (useMock ? mock.reply(stored!, tags) : provider.reply(stored!, tags)),
-              () => mock.reply(stored!, tags),
+              () =>
+                useMock
+                  ? mock.reply(stored!, tags, envelope)
+                  : provider.reply(stored!, tags, envelope),
+              () => mock.reply(stored!, tags, envelope),
             );
             stored.providerMode =
               useMock || output.fallback || provider instanceof MockSimulationProvider
                 ? "mock"
                 : "openai";
+            commitOffer(stored, output.value.proposedPrice, envelope);
             const offer = stored.estadoPublico.ofertaPublica;
             const offerChanged = previousOffer !== JSON.stringify(offer);
             const text =
               offerChanged ||
               tags.some((tag) => ["proposta", "ancoragem", "fechamento"].includes(tag))
-                ? `${output.value}\n\nPosição pública: R$ ${offer.precoUnitario.toFixed(2).replace(".", ",")} por ${stored.aluminum ? "tonelada" : "unidade"}. ${offer.contrapartidas.join("; ")}. A aceitação depende da confirmação do pacote completo.`
-                : output.value;
+                ? `${output.value.supplierMessage}\n\nPosição pública: R$ ${offer.precoUnitario.toFixed(2).replace(".", ",")} por ${stored.aluminum ? "tonelada" : "unidade"}. ${offer.contrapartidas.join("; ")}. A aceitação depende da confirmação do pacote completo.`
+                : output.value.supplierMessage;
             stored.mensagens.push(makeMessage(stored, "fornecedor", text));
             value = {
               snapshot: publicSnapshot(stored),

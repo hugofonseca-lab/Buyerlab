@@ -190,11 +190,24 @@ export interface PrivateNegotiationState {
   percepcaoDePoder: number;
   aversaoRisco: number;
   orientacaoRelacionamento: number;
-  degrau: number;
+  /** Profundidade contínua de concessão: 0 = oferta inicial, 1 = piso. */
+  concessionDepth: number;
   contrapartidas: string[];
   turnosSemAvanco: number;
   eventosOcorridos: string[];
   tentativasIndevidas: number;
+}
+
+/**
+ * Limites de concessão calculados pelo motor para o turno atual; a IA só pode propor um novo
+ * preço dentro deles (nunca subir, nunca ultrapassar `min`). Prazo/volume/forecast/pagamento
+ * continuam sempre derivados pelo motor a partir do preço final, nunca propostos pela IA.
+ */
+export interface ConcessionEnvelope {
+  currentDepth: number;
+  maxDepthThisTurn: number;
+  blocked: boolean;
+  price: { current: number; min: number; max: number; floor: number; initial: number };
 }
 
 export interface StructuredFinalOffer {

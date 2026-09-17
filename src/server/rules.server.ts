@@ -1,5 +1,5 @@
 import type { BuyerActionTag, PrivateNegotiationState, SupplierProfile } from "../domain/types";
-export const ENGINE_VERSION = "2.0.1";
+export const ENGINE_VERSION = "2.1.0";
 export const rules = {
   floor: 105,
   target: 112,
@@ -26,6 +26,13 @@ export const rules = {
     { price: 105, months: 18, volume: 10000, forecast: 60, payment: 15 },
   ],
   operational: { minLead: 10, maxOtif: 98, minDefects: 0.5, maxWarranty: 24 },
+  /**
+   * Ritmo máximo de concessão contínua por turno (profundidade 0..1). baseStep replica o antigo
+   * avanço de "um degrau inteiro" (1/5 = 0.2) sempre que o turno tem uma tag construtiva; os
+   * bônus permitem turnos muito bem argumentados/recíprocos avançarem mais rápido, sempre
+   * limitados pelo teto de confiança/reciprocidade já conquistado (nunca abrem exceção a ele).
+   */
+  concessionPacing: { baseStep: 0.2, argumentBonus: 0.05, reciprocityBonus: 0.05, maxStep: 0.3 },
   score: {
     lead: [5, 2],
     stock: 4,
@@ -91,7 +98,7 @@ export const rules = {
 type Emotion = Exclude<
   keyof PrivateNegotiationState,
   | "perfil"
-  | "degrau"
+  | "concessionDepth"
   | "contrapartidas"
   | "turnosSemAvanco"
   | "eventosOcorridos"

@@ -4,19 +4,21 @@ import { blueprint } from "./scenario.server";
 import { rules } from "./rules.server";
 import type { StoredRun } from "./model";
 import { sourcingDecision } from "./sourcing-score.server";
+import { depthFromPrice, termsAt, type PackageRow } from "./concession.server";
 
 export function feasible(offer: StructuredFinalOffer): string[] {
   const reasons: string[] = [];
-  const pack = rules.packages.find((p) => p.price === offer.precoUnitario);
-  if (!pack || offer.precoUnitario < rules.floor)
+  const rows = rules.packages as PackageRow[];
+  if (offer.precoUnitario < rules.floor || offer.precoUnitario > rules.initialOffer.precoUnitario)
     return ["O preço não pertence às condições comerciais permitidas."];
+  const terms = termsAt(rows, depthFromPrice(rows, offer.precoUnitario));
   if (offer.precoUnitario > blueprint.mandato.limitePrecoEfetivo)
     reasons.push("Preço acima do mandato autorizado da Orion.");
   if (
-    offer.duracaoMeses < pack.months ||
-    offer.volumeMinimoMensal < pack.volume ||
-    offer.forecastCongeladoDias < pack.forecast ||
-    offer.pagamentoDias > pack.payment
+    offer.duracaoMeses < terms.duracaoMeses - 1e-6 ||
+    offer.volumeMinimoMensal < terms.volumeMinimoMensal - 1e-6 ||
+    offer.forecastCongeladoDias < terms.forecastCongeladoDias - 1e-6 ||
+    offer.pagamentoDias > terms.pagamentoDias + 1e-6
   )
     reasons.push("As contrapartidas estruturadas não sustentam esse preço.");
   if (offer.volumeMinimoMensal > blueprint.mandato.demandaMensal)
@@ -125,35 +127,28 @@ export function deterministicScores(
     evidencias: [],
   }));
 }
-/** Fronteira comercial do cenário, com contrapartidas factíveis, sem supor nota qualitativa. */
+/**
+ * Fronteira comercial do cenário: o piso sempre domina (menor preço, pontuação de valor máxima) e
+ * as contrapartidas mais frouxas no piso já são as exigidas para esse preço; nenhuma combinação
+ * mais restritiva pontuaria mais alto. Forma fechada equivalente à antiga enumeração das 6
+ * linhas da escada × combinações de prazo/forecast/pagamento/lead.
+ */
 export function bestFeasible() {
-  const candidates: { offer: StructuredFinalOffer; points: number }[] = [];
-  for (const pack of rules.packages)
-    for (const months of [12, 18])
-      for (const forecast of [30, 60])
-        for (const payment of [15, 30, 45])
-          for (const lead of [10, 12, 14]) {
-            const offer = {
-              ...offerDefaults,
-              precoUnitario: pack.price,
-              duracaoMeses: months,
-              forecastCongeladoDias: forecast,
-              pagamentoDias: payment,
-              leadTimeDias: lead,
-            };
-            if (!feasible(offer).length)
-              candidates.push({
-                offer,
-                points: deterministicScores(offer, "acordo").reduce((n, x) => n + x.pontos, 0),
-              });
-          }
-  const best = candidates.sort(
-    (a, b) => b.points - a.points || a.offer.precoUnitario - b.offer.precoUnitario,
-  )[0];
-  if (!best) throw new Error("Blueprint sem pacote viável.");
+  const rows = rules.packages as PackageRow[];
+  const terms = termsAt(rows, 1);
+  const offer: StructuredFinalOffer = {
+    ...offerDefaults,
+    precoUnitario: rules.floor,
+    duracaoMeses: Math.max(18, Math.round(terms.duracaoMeses)),
+    forecastCongeladoDias: Math.max(60, Math.round(terms.forecastCongeladoDias)),
+    pagamentoDias: Math.min(15, Math.round(terms.pagamentoDias)),
+    leadTimeDias: rules.operational.minLead,
+  };
+  if (feasible(offer).length) throw new Error("Blueprint sem pacote viável.");
+  const points = deterministicScores(offer, "acordo").reduce((n, x) => n + x.pontos, 0);
   return {
-    preco: best.offer.precoUnitario,
-    custoMensal: best.offer.precoUnitario * blueprint.mandato.demandaMensal,
-    nota: best.points,
+    preco: offer.precoUnitario,
+    custoMensal: offer.precoUnitario * blueprint.mandato.demandaMensal,
+    nota: points,
   };
 }

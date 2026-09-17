@@ -17,8 +17,8 @@ São **90 configurações × 12 seeds × 6 contextos = 6.480 execuções**, cada
 
 ## Propriedades verificadas
 
-- Mesma configuração/seed/mensagens gera os mesmos estados, ofertas, eventos e sorteios; o mock também repete o texto.
-- Estados emocionais entre 0 e 100, preços em degraus válidos e nunca abaixo do piso.
+- Mesma configuração/seed/mensagens gera sempre os mesmos estados, eventos e sorteios. Com o provedor **mock**, gera também a mesma oferta negociada (preço e termos) e o mesmo texto, byte a byte — o mock decide o preço do turno de forma determinística pela seed, sempre consumindo toda a margem liberada pelo motor (`mockProposedPrice`). Com um provedor de IA real (OpenAI/Gemini), o texto e o preço exato propostos turno a turno dependem do modelo e **não** são reproduzíveis byte a byte: apenas os limites do turno (piso, direção permitida, passo máximo — `ConcessionEnvelope`) e a validação/clampagem final são garantidos pelo motor, nunca a redação ou o valor exato escolhidos pela IA.
+- Estados emocionais entre 0 e 100; preço sempre dentro dos limites do turno (nunca sobe, nunca cruza o piso).
 - Comprador eficaz consegue acordo com pacote excepcional válido e supera fraco/manipulador em todas as células da matriz.
 - Demanda sem contrapartida, concessão unilateral, ameaça e manipulação não geram desconto nos respectivos roteiros.
 - Evidências do diagnóstico pertencem às mensagens citadas, e pontos respeitam os máximos.
@@ -46,7 +46,7 @@ Compare replay dentro da mesma versão da engine. Execuções históricas não t
 
 ## Como repetir
 
-Resultado final da execução: **134 testes em cinco arquivos aprovados**, **14 E2E aprovados** (desktop/celular), build e typecheck aprovados. Lint sem erros, com os sete avisos preexistentes de Fast Refresh. A suíte unitária/integrada levou cerca de 90 segundos e a de navegador, 3,8 minutos neste ambiente.
+Resultado final da execução: **182 testes em dez arquivos aprovados**, build e typecheck aprovados. Lint sem erros, com os sete avisos preexistentes de Fast Refresh.
 
 ```sh
 bun run test
@@ -58,4 +58,4 @@ bun run test:e2e
 
 Somente a matriz e seus testes complementares: `bun run test tests/variations.test.ts`.
 
-O provedor usado foi **mock**. Falhas/saídas inválidas/timeout são simulados pelos testes existentes; chamadas reais à OpenAI não foram executadas por ausência de credenciais no processo. O classificador permanece heurístico e não valida semanticamente toda afirmação do comprador. Os eventos alteram condições descritas e estado emocional, sem simular fisicamente uma fábrica ou recalcular cronogramas completos.
+O provedor usado nesta matriz automatizada foi **mock**. Falhas/saídas inválidas/timeout são simulados pelos testes existentes. A negociação por preço contínuo (proposta da IA validada/clampada pelo motor a cada turno) foi separadamente validada com uma chave real do Gemini, fora desta matriz — ver [Alumínio](aluminum.md) e `docs/security.md`. O classificador permanece heurístico e não valida semanticamente toda afirmação do comprador. Os eventos alteram condições descritas e estado emocional, sem simular fisicamente uma fábrica ou recalcular cronogramas completos.

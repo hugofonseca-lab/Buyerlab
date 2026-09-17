@@ -350,7 +350,7 @@ describe("API persistente e autorizada", () => {
   });
   it("falha do provedor preserva turno e gera relatório provisório", async () => {
     class Broken extends MockSimulationProvider {
-      override async reply(): Promise<string> {
+      override async reply(): Promise<never> {
         throw Error("API indisponível");
       }
       override async evaluate(): Promise<never> {
@@ -375,8 +375,11 @@ describe("API persistente e autorizada", () => {
   it("mensagem neutra aciona classify() do provedor de IA; texto com tag do regex não aciona", async () => {
     let classifyCalls = 0;
     class FakeAIProvider implements SupplierProvider {
-      async reply(): Promise<string> {
-        return "Vamos avançar com transparência sobre os termos.";
+      async reply(): Promise<{ supplierMessage: string; proposedPrice: null }> {
+        return {
+          supplierMessage: "Vamos avançar com transparência sobre os termos.",
+          proposedPrice: null,
+        };
       }
       async evaluate(): Promise<CompetencyScore[]> {
         return [];

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRun, advance } from "../src/server/engine.server";
+import { computeEnvelope } from "../src/server/concession.server";
 import { scoreQualitative } from "../src/server/qualitative.server";
 import {
   GeminiSimulationProvider,
@@ -49,15 +50,15 @@ describe("provedor Gemini", () => {
         supplierMessage: "Vamos avaliar prioridades e prazos com transparência.",
         tone: "cordial",
         detectedBuyerActions: [],
-        currentPublicOffer: run.estadoPublico.ofertaPublica,
+        proposedPrice: run.estadoPublico.ofertaPublica.precoUnitario,
         disclosedInformationIds: [],
         dealStatus: "negociando",
         eventAcknowledgement: null,
         safetyFlags: [],
       }),
     });
-    const message = await provider.reply(run, []);
-    expect(message).toContain("prioridades");
+    const message = await provider.reply(run, [], computeEnvelope(run, []));
+    expect(message.supplierMessage).toContain("prioridades");
     expect(generateContent).toHaveBeenCalledTimes(1);
     const call = generateContent.mock.calls[0]![0];
     expect(call.model).toBe("modelo-teste");
@@ -118,7 +119,7 @@ describe("provedor Gemini", () => {
     const provider = new GeminiSimulationProvider("modelo-teste", "chave-ficticia");
     const internal = internalClientOf(provider);
     vi.spyOn(internal.client.models, "generateContent").mockResolvedValue({ text: "" });
-    await expect(provider.reply(run, [])).rejects.toThrow();
+    await expect(provider.reply(run, [], computeEnvelope(run, []))).rejects.toThrow();
   });
   it("configuredProvider: BUYERLAB_PROVIDER=gemini seleciona Gemini só com as duas variáveis", () => {
     vi.stubEnv("BUYERLAB_PROVIDER", "gemini");

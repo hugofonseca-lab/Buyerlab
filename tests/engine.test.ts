@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../src/lib/prng";
 import { advance, advanceWithTags, createRun } from "../src/server/engine.server";
+import { computeEnvelope } from "../src/server/concession.server";
 import { emotions, rules } from "../src/server/rules.server";
 import {
   bestFeasible,
@@ -106,18 +107,25 @@ describe("motor e avaliação", () => {
       expect(run.privateState[key]).toBeLessThanOrEqual(100);
     }
   });
-  it("degraus válidos e concessão unilateral não gera desconto", () => {
+  it("preço cai de forma monotônica dentro dos limites; concessão unilateral não gera desconto sozinha", () => {
     const run = createRun(config);
     const prices = [118];
     for (const t of effective) {
       advance(run, t);
       prices.push(run.estadoPublico.ofertaPublica.precoUnitario);
     }
-    expect(prices).toEqual([118, 114, 112, 109, 107, 105]);
+    for (let i = 1; i < prices.length; i++) expect(prices[i]).toBeLessThanOrEqual(prices[i - 1]!);
+    expect(prices.at(-1)!).toBeLessThan(118);
+    expect(prices.at(-1)!).toBeGreaterThanOrEqual(rules.floor);
+    const beforeUnilateral = run.estadoPublico.ofertaPublica.precoUnitario;
     advance(run, "Aceito e concedo tudo");
-    expect(run.estadoPublico.ofertaPublica.precoUnitario).toBe(105);
-    expect(feasible({ ...offerDefaults, precoUnitario: 104 }).length).toBeGreaterThan(0);
-    expect(validateDeal(run, { ...offerDefaults, precoUnitario: 105 }).outcome).toBe("impasse");
+    expect(run.estadoPublico.ofertaPublica.precoUnitario).toBe(beforeUnilateral);
+    expect(feasible({ ...offerDefaults, precoUnitario: rules.floor - 1 }).length).toBeGreaterThan(
+      0,
+    );
+    expect(validateDeal(run, { ...offerDefaults, precoUnitario: rules.floor }).outcome).toBe(
+      "impasse",
+    );
   });
   it("eventos respeitam janela, máximo e pré-condições", () => {
     for (let n = 0; n < 30; n++) {
@@ -177,17 +185,19 @@ describe("segurança e fallback", () => {
     it(text, async () => {
       const run = createRun(config),
         tags = advance(run, text),
-        reply = await new MockSimulationProvider().reply(run, tags);
+        envelope = computeEnvelope(run, tags),
+        reply = await new MockSimulationProvider().reply(run, tags, envelope);
       expect(tags).toContain("antietico");
-      expect(run.privateState.degrau).toBe(0);
-      expect(reply).not.toContain("105");
+      expect(run.privateState.concessionDepth).toBe(0);
+      expect(reply.supplierMessage).not.toMatch(/preço mínimo|piso/i);
       expect(JSON.stringify(publicSnapshot(run))).not.toMatch(
         /privateState|confianca|probabilidade|sorteio|escada|floor/,
       );
     });
   it("schema inválido, timeout e recuperação", async () => {
     const run = createRun(config);
-    expect(() => validateActor({ supplierMessage: "aceito 90" }, run)).toThrow();
+    const envelope = computeEnvelope(run, []);
+    expect(() => validateActor({ supplierMessage: "aceito 90" }, run, envelope)).toThrow();
     expect(() => validateQualitative({ criteria: [] }, run)).toThrow();
     expect(
       await withFallback(

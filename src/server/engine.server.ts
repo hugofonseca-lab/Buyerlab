@@ -1,5 +1,6 @@
 import type {
   BuyerActionTag,
+  ConcessionEnvelope,
   NegotiationMessage,
   PrivateNegotiationState,
   RunConfig,
@@ -13,6 +14,14 @@ import { deltas, emotions, ENGINE_VERSION, profileWeights, rules } from "./rules
 import type { StoredRun } from "./model";
 import { activeSupplier, contextFor, generateAluminum, publicBlueprint } from "./aluminum.server";
 import { sourcingCost } from "./sourcing-score.server";
+import {
+  computeEnvelope,
+  depthFromPrice,
+  priceAt,
+  termsAt,
+  type PackageRow,
+} from "./concession.server";
+import { mockProposedPrice } from "./supplier-dialogue.server";
 
 export const clamp = (n: number) => Math.max(0, Math.min(100, n));
 const profiles: SupplierProfile[] = ["colaborativo", "analitico", "dominante", "defensivo"];
@@ -36,14 +45,16 @@ export function publicSnapshot(stored: StoredRun): RunSnapshot {
         true,
       ),
     };
-    const pack = contextFor(stored).rules.packages[stored.privateState.degrau]!;
+    const rows = contextFor(stored).rules.packages as PackageRow[];
+    const depth = stored.privateState.concessionDepth;
+    const terms = termsAt(rows, depth);
     result.suggestedOffer = {
       ...stored.aluminum.blueprint.ofertaInicialComprador,
-      precoUnitario: pack.price,
-      volumeMinimoMensal: pack.volume,
-      duracaoMeses: Math.max(12, pack.months),
-      forecastCongeladoDias: Math.max(30, pack.forecast),
-      pagamentoDias: pack.payment,
+      precoUnitario: priceAt(rows, depth),
+      volumeMinimoMensal: Math.round(terms.volumeMinimoMensal),
+      duracaoMeses: Math.max(12, Math.round(terms.duracaoMeses)),
+      forecastCongeladoDias: Math.max(30, Math.round(terms.forecastCongeladoDias)),
+      pagamentoDias: Math.round(terms.pagamentoDias),
       contrapartidas: stored.estadoPublico.ofertaPublica.contrapartidas.join("; "),
     };
   }
@@ -89,7 +100,7 @@ export function createRun(
     percepcaoDePoder: Math.round(58 + rng() * 18),
     aversaoRisco: Math.round(42 + rng() * 30),
     orientacaoRelacionamento: Math.round(45 + rng() * 30),
-    degrau: 0,
+    concessionDepth: 0,
     contrapartidas: [],
     turnosSemAvanco: 0,
     eventosOcorridos: [],
@@ -164,31 +175,6 @@ export function evolve(stored: StoredRun, tags: BuyerActionTag[], counterparts: 
     state.contrapartidas = [...new Set([...state.contrapartidas, ...counterparts])];
   }
 }
-export function canAdvance(stored: StoredRun, tags: BuyerActionTag[]): boolean {
-  const { blueprint } = contextFor(stored);
-  const s = stored.privateState;
-  const next = blueprint.escada[s.degrau + 1];
-  if (!next || tags.some((t) => ["ameaca", "antietico", "concessao_unilateral"].includes(t)))
-    return false;
-  if (
-    !tags.some((t) => ["diagnostico", "uso_de_dados", "troca_condicional", "proposta"].includes(t))
-  )
-    return false;
-  const all = new Set([
-    ...stored.mensagens
-      .filter((m) => !stored.aluminum || m.supplierId === stored.aluminum.activeSupplierId)
-      .flatMap((m) => m.acoes ?? []),
-    ...tags,
-  ]);
-  return (
-    (!next.exigeArgumentoCrivel || all.has("diagnostico") || all.has("uso_de_dados")) &&
-    (!next.exigeReciprocidade || all.has("troca_condicional")) &&
-    s.confianca >= next.confiancaMinima &&
-    s.frustracao < 80 &&
-    s.abertura >= 25 &&
-    s.contrapartidas.length >= next.contrapartidasMinimas
-  );
-}
 export function maybeEvent(stored: StoredRun): void {
   const { blueprint, rules } = contextFor(stored);
   const s = stored.privateState,
@@ -208,7 +194,11 @@ export function maybeEvent(stored: StoredRun): void {
       continue;
     if (evaluation && (turn !== 3 || event.id !== "atraso_logistico")) continue;
     if (event.prerequisito === "sem_avanco" && s.turnosSemAvanco < 2) continue;
-    if (event.prerequisito === "proximo_do_acordo" && s.degrau < 3) continue;
+    if (
+      event.prerequisito === "proximo_do_acordo" &&
+      s.concessionDepth < 3 / (blueprint.escada.length - 1)
+    )
+      continue;
     if (event.prerequisito === "demora" && turn < 5 && s.turnosSemAvanco < 2) continue;
     const policy = rules.eventPolicies[event.id as keyof typeof rules.eventPolicies];
     if (
@@ -252,16 +242,20 @@ export function maybeEvent(stored: StoredRun): void {
   }
 }
 /**
- * Avança o estado a partir de tags já decididas (regex ou, quando configurado, um classificador
- * de IA restrito ao mesmo vocabulário fechado de BuyerActionTag — ver classify() em
- * providers.server.ts). O motor continua sendo o único a decidir estado a partir das tags; só a
- * origem da classificação pode variar.
+ * Avança o estado emocional/eventos a partir de tags já decididas (regex ou, quando configurado,
+ * um classificador de IA restrito ao mesmo vocabulário fechado de BuyerActionTag — ver classify()
+ * em providers.server.ts). Não grava a nova oferta pública: apenas calcula e devolve o
+ * `ConcessionEnvelope` (limites de preço deste turno), que o chamador deve repassar ao provedor
+ * (IA ou mock) e, com o preço proposto por ele, chamar `commitOffer` para gravar a posição
+ * pública validada. O motor continua sendo o único a decidir estado a partir das tags e o único a
+ * validar/clampar qualquer valor comercial; só a origem da classificação e do preço proposto pode
+ * variar.
  */
-export function advanceWithTags(
+export function advanceState(
   stored: StoredRun,
   text: string,
   tags: BuyerActionTag[],
-): BuyerActionTag[] {
+): ConcessionEnvelope {
   const { rules } = contextFor(stored);
   if (
     stored.estadoPublico.encerrada ||
@@ -271,23 +265,7 @@ export function advanceWithTags(
   stored.estadoPublico.turno++;
   stored.run.status = "negociacao";
   evolve(stored, tags, extractRelevantCounterparts(text));
-  const previous = stored.privateState.degrau;
-  if (canAdvance(stored, tags)) stored.privateState.degrau++;
-  stored.privateState.turnosSemAvanco =
-    previous === stored.privateState.degrau ? stored.privateState.turnosSemAvanco + 1 : 0;
-  const offer = rules.packages[stored.privateState.degrau]!;
-  Object.assign(stored.estadoPublico.ofertaPublica, {
-    precoUnitario: offer.price,
-    duracaoMeses: offer.months,
-    volumeMinimo: `${offer.volume} ${stored.aluminum ? "t/mês" : "unidades/mês"}`,
-    pagamentoDias: offer.payment,
-    contrapartidas: [
-      `Contrato de pelo menos ${offer.months} meses`,
-      `Volume mínimo de ${offer.volume} ${stored.aluminum ? "t/mês" : "unidades/mês"}`,
-      `Forecast congelado por ${offer.forecast} dias`,
-      `Pagamento em até ${offer.payment} dias`,
-    ],
-  });
+  const envelope = computeEnvelope(stored, tags);
   if (tags.includes("diagnostico") || tags.includes("pergunta_aberta"))
     stored.disclosures = Object.keys(rules.disclosures);
   stored.mensagens.push(makeMessage(stored, "comprador", text, tags));
@@ -298,10 +276,70 @@ export function advanceWithTags(
     stored.estadoPublico.turno >= stored.estadoPublico.turnosMaximos
   )
     stored.estadoPublico.encerrada = true;
+  return envelope;
+}
+/**
+ * Grava a posição pública do turno a partir do preço proposto (pela IA ou pelo mock),
+ * validado/clampado contra o `envelope` calculado por `advanceState` — nunca confia no valor
+ * recebido sem reclampar. Prazo, volume, forecast e pagamento são sempre derivados pelo motor a
+ * partir do preço final, nunca propostos por quem chamou.
+ */
+export function commitOffer(
+  stored: StoredRun,
+  proposedPrice: number | null,
+  envelope: ConcessionEnvelope,
+): void {
+  const { rules } = contextFor(stored);
+  const rows = rules.packages as PackageRow[];
+  const target = Math.min(
+    envelope.price.max,
+    Math.max(envelope.price.min, proposedPrice ?? envelope.price.max),
+  );
+  const depth = Math.min(
+    envelope.maxDepthThisTurn,
+    Math.max(envelope.currentDepth, depthFromPrice(rows, target)),
+  );
+  const price = Math.round(priceAt(rows, depth) * 100) / 100;
+  const terms = termsAt(rows, depth);
+  const previous = stored.privateState.concessionDepth;
+  stored.privateState.concessionDepth = depth;
+  stored.privateState.turnosSemAvanco =
+    depth > previous + 1e-9 ? 0 : stored.privateState.turnosSemAvanco + 1;
+  const months = Math.round(terms.duracaoMeses),
+    volume = Math.round(terms.volumeMinimoMensal),
+    forecast = Math.round(terms.forecastCongeladoDias),
+    payment = Math.round(terms.pagamentoDias);
+  Object.assign(stored.estadoPublico.ofertaPublica, {
+    precoUnitario: price,
+    duracaoMeses: months,
+    volumeMinimo: `${volume} ${stored.aluminum ? "t/mês" : "unidades/mês"}`,
+    pagamentoDias: payment,
+    contrapartidas: [
+      `Contrato de pelo menos ${months} meses`,
+      `Volume mínimo de ${volume} ${stored.aluminum ? "t/mês" : "unidades/mês"}`,
+      `Forecast congelado por ${forecast} dias`,
+      `Pagamento em até ${payment} dias`,
+    ],
+  });
   if (stored.aluminum && stored.sourcingPrivate)
     stored.sourcingPrivate.states[stored.aluminum.activeSupplierId] = structuredClone(
       stored.privateState,
     );
+}
+/**
+ * Avança e grava a oferta num único passo síncrono, usando o mesmo algoritmo determinístico do
+ * mock para decidir o preço proposto (ver mockProposedPrice em supplier-dialogue.server.ts).
+ * Usado por `advance` e por todo chamador que não precisa consultar um provedor de IA real turno
+ * a turno (ex.: testes). O fluxo real de mensagens (api.server.ts) usa `advanceState` +
+ * `provider.reply` + `commitOffer` diretamente, para permitir que a IA proponha o preço.
+ */
+export function advanceWithTags(
+  stored: StoredRun,
+  text: string,
+  tags: BuyerActionTag[],
+): BuyerActionTag[] {
+  const envelope = advanceState(stored, text, tags);
+  commitOffer(stored, mockProposedPrice(stored, envelope), envelope);
   return tags;
 }
 /** Classifica por regex e avança — comportamento inalterado para todo chamador existente. */

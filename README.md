@@ -9,7 +9,7 @@ A interface acompanha a [referência atualizada do Lovable no GitHub](docs/ui-re
 - A seed congela material, demanda, estoque, mercado e candidatos. Repetir a seed preserva as condições quando os parâmetros e versões também são iguais.
 - Compare Nexa Alumínio Nacional, Atlas Metais Internacionais e Circular Chapas Industriais. Preços em reais por tonelada; componente importado incorpora exposição cambial.
 - Uma troca justificada preserva conversas e inicia uma relação independente. Homologação, capacidade, prazo, custo de troca e momento da decisão afetam a viabilidade.
-- O servidor calcula o melhor TCO viável por enumeração. Sourcing integra os 60 pontos objetivos; a IA avalia até 40 pontos com evidências reais. Falhas usam avaliação provisória por regras.
+- O servidor calcula o melhor TCO viável por fornecedor no preço-piso. Sourcing integra os 60 pontos objetivos; a IA avalia até 40 pontos com evidências reais. Falhas usam avaliação provisória por regras.
 - `/historico` reúne relatórios da sessão anônima e compara grupos compatíveis de material, rubrica, dificuldade, modo e origem da avaliação. Apagar cookies perde o acesso local ao histórico.
 - Mercado v1 é uma referência educacional estática de 16/09/2026, não uma consulta real a cotações. Consulte [regras e fórmulas](docs/aluminum.md).
 - Links antigos com seed e sem `cenario=aluminum` continuam abrindo o cenário legado.
@@ -83,7 +83,7 @@ Sem chave/modelo, falha, timeout ou saída inválida, usa mock. Avaliação qual
 
 O fornecedor usa OpenAI quando `.env` contém `BUYERLAB_PROVIDER=openai`, `OPENAI_API_KEY` e `OPENAI_MODEL` válidos, ou Gemini quando contém `BUYERLAB_PROVIDER=gemini`, `GEMINI_API_KEY` e `GEMINI_MODEL` válidos. Reinicie o servidor após configurar. Sem credenciais ou em caso de falha, a interface identifica o fornecedor mock; isso não comprova uma conexão com a IA. Os dois provedores usam exatamente as mesmas instruções de segurança e o mesmo contexto (`src/server/providers.server.ts`), diferindo só no SDK e no formato de saída estruturada.
 
-A nota final soma **60 pontos objetivos calculados pelo motor** e **até 40 pontos qualitativos avaliados pela IA**, com trechos e IDs de mensagens validados no servidor. A IA não altera a parte objetiva. Se a avaliação de IA falhar, a parte qualitativa usa regras e o relatório fica marcado como provisório. A integração real precisa ser validada com uma execução completa após configurar as credenciais.
+A nota final soma **60 pontos objetivos calculados pelo motor** e **até 40 pontos qualitativos avaliados pela IA**, com trechos e IDs de mensagens validados no servidor. Durante a negociação, a IA propõe o preço de cada turno dentro dos limites que o motor calcula (confiança e reciprocidade já demonstradas); o motor sempre valida/clampa essa proposta antes de gravá-la, e é esse preço efetivamente negociado — não mais uma tabela fixa — que alimenta a parte objetiva da nota. A IA nunca decide fora desses limites nem propõe prazo, volume, forecast ou pagamento isoladamente (sempre derivados do preço final pelo motor). Se a avaliação de IA falhar, a parte qualitativa usa regras e o relatório fica marcado como provisório. A integração real precisa ser validada com uma execução completa após configurar as credenciais.
 
 ```sh
 bun run lint

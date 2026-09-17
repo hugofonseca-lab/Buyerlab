@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RunConfig } from "../src/domain/types";
 import { advance, createRun, maybeEvent, publicSnapshot } from "../src/server/engine.server";
+import { computeEnvelope } from "../src/server/concession.server";
 import { emotions, rules } from "../src/server/rules.server";
 import { blueprint } from "../src/server/scenario.server";
 import { MockSimulationProvider } from "../src/server/providers.server";
@@ -70,9 +71,10 @@ describe("matriz: 90 configurações × 12 seeds × 6 contextos, com replay", ()
             const text = script[turn % script.length]!;
             const tags = advance(run, text);
             advance(replay, text);
-            const reply = await mock.reply(run, tags);
-            expect(reply).toBe(await mock.reply(replay, tags));
-            expect(reply.length).toBeGreaterThan(20);
+            const envelope = computeEnvelope(run, tags);
+            const reply = await mock.reply(run, tags, envelope);
+            expect(reply).toEqual(await mock.reply(replay, tags, computeEnvelope(replay, tags)));
+            expect(reply.supplierMessage.length).toBeGreaterThan(20);
             expect(run.privateState).toEqual(replay.privateState);
             expect(run.audit).toEqual(replay.audit);
             for (const audit of run.audit.filter((a) => a.turno === run.estadoPublico.turno)) {
@@ -80,7 +82,7 @@ describe("matriz: 90 configurações × 12 seeds × 6 contextos, com replay", ()
               if (event.prerequisito === "sem_avanco")
                 expect(run.privateState.turnosSemAvanco).toBeGreaterThanOrEqual(2);
               if (event.prerequisito === "proximo_do_acordo")
-                expect(run.privateState.degrau).toBeGreaterThanOrEqual(3);
+                expect(run.privateState.concessionDepth).toBeGreaterThanOrEqual(3 / 5);
               if (event.prerequisito === "demora")
                 expect(audit.turno >= 5 || run.privateState.turnosSemAvanco >= 2).toBe(true);
             }
@@ -90,9 +92,8 @@ describe("matriz: 90 configurações × 12 seeds × 6 contextos, com replay", ()
               expect(run.privateState[key]).toBeLessThanOrEqual(100);
             }
             const price = run.estadoPublico.ofertaPublica.precoUnitario;
-            expect(rules.packages.map((p) => p.price)).toContain(price);
             expect(price).toBeLessThanOrEqual(previousPrice);
-            expect(price).toBeGreaterThanOrEqual(105);
+            expect(price).toBeGreaterThanOrEqual(rules.floor);
             previousPrice = price;
             expect(JSON.stringify(publicSnapshot(run))).not.toMatch(
               /privateState|confianca|probabilidade|sorteio|escada|floor/,
@@ -187,7 +188,6 @@ it("pacotes: acordo robusto, acordo frágil e limites de cada contrapartida", ()
     expect(validateDeal(run, { ...offer, [key]: false }).outcome).toBe("acordo_fragil");
   for (const patch of [
     { precoUnitario: 104 },
-    { precoUnitario: 106 },
     { precoUnitario: 118 },
     { duracaoMeses: 17 },
     { volumeMinimoMensal: 9999 },
@@ -201,6 +201,12 @@ it("pacotes: acordo robusto, acordo frágil e limites de cada contrapartida", ()
     { prioridadeProducao: false },
   ])
     expect(feasible({ ...offer, ...patch }).length).toBeGreaterThan(0);
+  // Preço contínuo entre dois degraus (não mais só os 6 valores exatos da escada antiga):
+  // viável com contrapartidas interpoladas equivalentes, inviável com contrapartidas abaixo delas.
+  expect(feasible({ ...offer, precoUnitario: 106 }).length).toBe(0);
+  expect(
+    feasible({ ...offer, precoUnitario: 106, duracaoMeses: 6, forecastCongeladoDias: 0 }).length,
+  ).toBeGreaterThan(0);
   expect(validateDeal(createRun(configurations[0]!), offer).outcome).toBe("impasse");
 });
 
@@ -221,7 +227,7 @@ it.each(blueprint.eventos)("evento $id: probabilidade, efeito e janela", (event)
   for (let seed = 0; seed < 500 && !occurred; seed++) {
     const run = createRun({ ...configurations[0]!, seed: `POLICY-${seed}`, urgencia: "alta" });
     run.estadoPublico.turno = Math.max(5, event.turnoMinimo);
-    run.privateState.degrau = 3;
+    run.privateState.concessionDepth = 3 / 5;
     run.privateState.turnosSemAvanco = 2;
     const before = structuredClone(run);
     maybeEvent(run);

@@ -1,9 +1,24 @@
 import type { SupplierCandidate, SourcingResult } from "../domain/aluminum";
 import type { CompetencyScore, Outcome, StructuredFinalOffer } from "../domain/types";
 import type { StoredRun } from "./model";
-import { activeSupplier, ALUMINUM_TEMPLATE } from "./aluminum.server";
+import { activeSupplier, ALUMINUM_TEMPLATE, type SupplierPrivate } from "./aluminum.server";
 import { offerDefaults } from "../domain/offer-defaults";
+import { depthFromPrice, termsAt, type PackageRow } from "./concession.server";
 const round = (n: number) => Math.round(n * 100) / 100;
+/** Mesma fórmula de contrapartidas por degrau usada em contextFor, para um fornecedor qualquer. */
+function packageRowsFor(
+  s: SupplierCandidate,
+  privateConfig: SupplierPrivate,
+  monthlyDemand: number,
+): PackageRow[] {
+  return privateConfig.concessionLadder.map((price, index) => ({
+    price,
+    months: index >= 5 ? 18 : index >= 2 ? 12 : 6,
+    volume: monthlyDemand,
+    forecast: index >= 5 ? 60 : index >= 3 ? 30 : 15,
+    payment: Math.max(21, s.paymentDays - (index >= 4 ? 7 : 0)),
+  }));
+}
 export function sourcingCost(
   stored: StoredRun,
   s: SupplierCandidate,
@@ -47,19 +62,21 @@ function constraints(
 ): string[] {
   const i = stored.aluminum!.instance,
     privateConfig = stored.sourcingPrivate!.supplierConfigs[s.id]!;
-  const index = privateConfig.concessionLadder.indexOf(offer.precoUnitario);
+  const rows = packageRowsFor(s, privateConfig, i.monthlyDemand);
   const reasons: string[] = [];
-  if (index < 0 || offer.precoUnitario < privateConfig.floor)
+  if (offer.precoUnitario < privateConfig.floor || offer.precoUnitario > rows[0]!.price)
     reasons.push("Preço fora da escada autorizada do fornecedor.");
   if (offer.precoUnitario > i.buyerMaximumPrice) reasons.push("Preço acima do mandato da compra.");
   if (i.purchaseQuantity < s.minimumOrderQuantity || i.purchaseQuantity > s.capacityAvailable)
     reasons.push("Quantidade incompatível com MOQ ou capacidade disponível.");
   if (offer.volumeMinimoMensal > i.monthlyDemand || offer.volumeMinimoMensal < i.monthlyDemand)
     reasons.push("O volume mensal deve corresponder à demanda da instância.");
+  const depth = depthFromPrice(rows, offer.precoUnitario);
+  const terms = termsAt(rows, depth);
   if (
-    offer.duracaoMeses < (index >= 5 ? 18 : index >= 2 ? 12 : 6) ||
-    offer.forecastCongeladoDias < (index >= 5 ? 60 : index >= 3 ? 30 : 15) ||
-    offer.pagamentoDias > Math.max(21, s.paymentDays - (index >= 4 ? 7 : 0))
+    offer.duracaoMeses < terms.duracaoMeses - 1e-6 ||
+    offer.forecastCongeladoDias < terms.forecastCongeladoDias - 1e-6 ||
+    offer.pagamentoDias > terms.pagamentoDias + 1e-6
   )
     reasons.push("Contrapartidas insuficientes para o preço proposto.");
   if (offer.leadTimeDias !== s.leadTimeDays)
@@ -111,28 +128,32 @@ export function sourcingDecision(
     reason: `Pacote validado com ${s.displayName}; ${fragile ? "há riscos residuais de qualidade ou proteção operacional" : "preço, capacidade, prazo e homologação são compatíveis"}.`,
   };
 }
+/**
+ * Fronteira de custo por fornecedor: o preço mínimo (piso) sempre domina o custo total quando
+ * viável, já que o TCO cresce com o preço e o pacote de contrapartidas mais frouxo (usado aqui)
+ * já é o exigido pelo piso. Forma fechada equivalente à antiga enumeração de toda a escada.
+ */
 export function sourcingBenchmark(stored: StoredRun) {
   const a = stored.aluminum!;
   const candidates: { supplier: SupplierCandidate; price: number; cost: number }[] = [];
   for (const supplier of a.suppliers) {
-    for (const price of stored.sourcingPrivate!.supplierConfigs[supplier.id]!.concessionLadder) {
-      const offer = {
-        ...offerDefaults,
-        precoUnitario: price,
-        volumeMinimoMensal: a.instance.monthlyDemand,
-        duracaoMeses: 18,
-        forecastCongeladoDias: 60,
-        pagamentoDias: 21,
-        leadTimeDias: supplier.leadTimeDays,
-        limiteDefeitos: supplier.rejectionRate,
-      };
-      if (!constraints(stored, supplier, offer, 0).length)
-        candidates.push({
-          supplier,
-          price,
-          cost: sourcingCost(stored, supplier, price, true, 0).totalCost,
-        });
-    }
+    const price = stored.sourcingPrivate!.supplierConfigs[supplier.id]!.floor;
+    const offer = {
+      ...offerDefaults,
+      precoUnitario: price,
+      volumeMinimoMensal: a.instance.monthlyDemand,
+      duracaoMeses: 18,
+      forecastCongeladoDias: 60,
+      pagamentoDias: 21,
+      leadTimeDias: supplier.leadTimeDays,
+      limiteDefeitos: supplier.rejectionRate,
+    };
+    if (!constraints(stored, supplier, offer, 0).length)
+      candidates.push({
+        supplier,
+        price,
+        cost: sourcingCost(stored, supplier, price, true, 0).totalCost,
+      });
   }
   const best = candidates.sort((x, y) => x.cost - y.cost)[0];
   if (!best) throw new Error("Instância sem benchmark viável.");

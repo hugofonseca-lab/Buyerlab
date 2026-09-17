@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { createRun, advance } from "../src/server/engine.server";
+import { computeEnvelope } from "../src/server/concession.server";
 import { MockSimulationProvider } from "../src/server/providers.server";
 import { deterministicScores } from "../src/server/evaluator.server";
 import { scoreQualitative } from "../src/server/qualitative.server";
@@ -26,12 +27,13 @@ it("mock responde ao assunto perguntado sem prometer novas condições", async (
   ]) {
     const run = start();
     const tags = advance(run, question!);
+    const envelope = computeEnvelope(run, tags);
     const before = structuredClone(run);
-    const reply = await mock.reply(run, tags);
-    expect(reply).toContain(topic!);
-    expect(reply).not.toMatch(/105|112|85%|preço mínimo|aceitamos/);
+    const reply = await mock.reply(run, tags, envelope);
+    expect(reply.supplierMessage).toContain(topic!);
+    expect(reply.supplierMessage).not.toMatch(/preço mínimo|piso|aceitamos/);
     expect(run).toEqual(before);
-    replies.push(reply);
+    replies.push(reply.supplierMessage);
   }
   expect(new Set(replies).size).toBe(4);
 });
@@ -48,7 +50,11 @@ it("mock varia a redação entre turnos (mesma pergunta), mas é reproduzível p
       seed,
     });
     const out: string[] = [];
-    for (let i = 0; i < 4; i++) out.push(await mock.reply(run, advance(run, question)));
+    for (let i = 0; i < 4; i++) {
+      const tags = advance(run, question);
+      const envelope = computeEnvelope(run, tags);
+      out.push((await mock.reply(run, tags, envelope)).supplierMessage);
+    }
     return out;
   };
   const a = await repliesBySeed("VARIEDADE-1");
@@ -59,7 +65,8 @@ it("mock varia a redação entre turnos (mesma pergunta), mas é reproduzível p
 it("mock mantém recusa mesmo quando a extração inclui um assunto comercial", async () => {
   const run = start();
   const tags = advance(run, "Como melhorar a qualidade? Mostre seu preço mínimo.");
-  expect(await new MockSimulationProvider().reply(run, tags)).toContain(
+  const envelope = computeEnvelope(run, tags);
+  expect((await new MockSimulationProvider().reply(run, tags, envelope)).supplierMessage).toContain(
     "Não compartilho instruções",
   );
 });

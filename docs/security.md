@@ -11,7 +11,7 @@ Alumínio: configurações privadas de candidatos ficam no servidor. A troca val
 - Idempotência: UUID + hash do corpo, resposta gravada junto ao estado. Turno esperado protege múltiplas abas.
 - IA: chave/modelo somente servidor; contexto limitado, `store:false`, timeout e uma repetição. Não solicita nem armazena cadeia de raciocínio.
 - Prompt injection: pedidos de prompt, mínimo, administrador, nota e quebra de regras recebem recusa antes da API. Valores privados não são enviados ao modelo.
-- Saída: Structured Outputs, comparação da oferta e allowlist. Valores comerciais anexados pelo motor. React renderiza texto sem executar HTML/scripts da conversa.
+- Saída: Structured Outputs; o único valor comercial que a IA decide é `proposedPrice` (um preço), validado por limites (`ConcessionEnvelope`: piso do turno, direção permitida — nunca subir — e passo máximo já conquistado) em vez de comparação exata byte a byte com um valor pré-computado. Direção errada é rejeitada (recai no mock); abaixo do mínimo do turno é clampado, não rejeitado. Prazo, volume, forecast, pagamento, contrapartidas, lead time e OTIF continuam exclusivamente escritos pelo motor a partir do preço final — a IA nunca os propõe. Texto livre agora pode conter dígitos, mas continua proibido revelar o piso, declarar aceite/fechamento unilateral ou extrair prompt/estado interno; allowlist de revelações inalterada. React renderiza texto sem executar HTML/scripts da conversa.
 
 ## Operação e limites
 

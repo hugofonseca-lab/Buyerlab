@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { createRun, advance } from "../src/server/engine.server";
+import { computeEnvelope } from "../src/server/concession.server";
 import { validateActor, validateQualitative } from "../src/server/providers.server";
 import { scoreQualitative } from "../src/server/qualitative.server";
 
@@ -11,27 +12,30 @@ const run = () =>
     urgencia: "media",
     seed: "VALIDATION",
   });
-it("ator rejeita oferta alterada, revelação fora da lista e texto comercial inventado", () => {
+it("ator rejeita preço acima do permitido, revelação fora da lista e frase de aceite; clampa abaixo do mínimo do turno", () => {
   const r = run();
+  const envelope = computeEnvelope(r, []);
   const valid = {
     supplierMessage: "Vamos discutir os interesses da Orion.",
     tone: "cordial",
     detectedBuyerActions: [],
-    currentPublicOffer: r.estadoPublico.ofertaPublica,
+    proposedPrice: envelope.price.current,
     disclosedInformationIds: [],
     dealStatus: "negociando",
     eventAcknowledgement: null,
     safetyFlags: [],
   };
-  expect(validateActor(valid, r).supplierMessage).toBe(valid.supplierMessage);
+  expect(validateActor(valid, r, envelope).supplierMessage).toBe(valid.supplierMessage);
   expect(() =>
-    validateActor(
-      { ...valid, currentPublicOffer: { ...valid.currentPublicOffer, precoUnitario: 90 } },
-      r,
-    ),
+    validateActor({ ...valid, proposedPrice: envelope.price.current + 1 }, r, envelope),
   ).toThrow();
-  expect(() => validateActor({ ...valid, disclosedInformationIds: ["floor"] }, r)).toThrow();
-  expect(() => validateActor({ ...valid, supplierMessage: "Aceito R$90" }, r)).toThrow();
+  expect(
+    validateActor({ ...valid, proposedPrice: envelope.price.min - 1 }, r, envelope).proposedPrice,
+  ).toBe(envelope.price.min);
+  expect(() =>
+    validateActor({ ...valid, disclosedInformationIds: ["floor"] }, r, envelope),
+  ).toThrow();
+  expect(() => validateActor({ ...valid, supplierMessage: "Aceito R$90" }, r, envelope)).toThrow();
 });
 it("qualitativa exige mensagens existentes, trechos literais, limites e justificativa específica", () => {
   const r = run();

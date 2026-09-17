@@ -1,7 +1,21 @@
-import type { BuyerActionTag } from "../domain/types";
+import type { BuyerActionTag, ConcessionEnvelope } from "../domain/types";
 import type { StoredRun } from "./model";
 import { contextFor } from "./aluminum.server";
 import { createRng, pick } from "../lib/prng";
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Preço proposto pelo mock a cada turno: sempre consome toda a margem liberada pelo motor neste
+ * turno (o mesmo ritmo do antigo avanço discreto de "um degrau inteiro" por turno qualificado),
+ * determinístico pela seed (mesma seed reproduz a mesma trajetória de preço). Nunca decide
+ * sozinho fora dos limites — o chamador ainda reclampa via `commitOffer`. A variação turno a
+ * turno vem de `mockDialogue` (redação), não do valor negociado, que é sempre o máximo permitido.
+ */
+export function mockProposedPrice(stored: StoredRun, envelope: ConcessionEnvelope): number | null {
+  if (envelope.blocked) return null;
+  return round2(envelope.price.min);
+}
 
 /** Redação mock baseada no assunto; nunca decide preço, aceite ou revelações. */
 export function mockDialogue(stored: StoredRun, tags: BuyerActionTag[]): string {

@@ -34,7 +34,7 @@ TCO = preço autorizado × quantidade comprada + custo de troca + provisão camb
 - Parada = dias sem cobertura × impacto diário da instância.
 - Os cartões mostram estimativas iniciais sem estoque/parada; a prévia ativa e o relatório incluem esses componentes.
 
-O benchmark enumera candidatos e degraus com contrapartidas excepcionais, considerando troca no início. Rejeita pacotes fora de capacidade, MOQ, orçamento, qualidade, prazo ou homologação. É uma referência de oportunidade, não uma concessão automaticamente disponível. A proposta real precisa respeitar a oferta atual autorizada e aceitação explícita.
+O benchmark compara, por fornecedor, o preço-piso com as contrapartidas excepcionais correspondentes, considerando troca no início. Rejeita pacotes fora de capacidade, MOQ, orçamento, qualidade, prazo ou homologação. É uma referência de oportunidade, não uma concessão automaticamente disponível. A proposta real precisa respeitar a oferta atual autorizada e aceitação explícita. O preço negociado em si é contínuo (não mais uma escada fixa de degraus): a cada turno, o motor calcula os limites permitidos (piso do turno, direção e passo máximo, conforme confiança e reciprocidade já demonstradas) e a IA — ou o mock, de forma determinística pela seed — propõe um novo preço dentro deles; prazo, volume, forecast e pagamento continuam sempre derivados pelo motor a partir desse preço.
 
 Pontuação objetiva: valor 20, continuidade 15, qualidade/risco 15, condições 10. Sem acordo válido, a parcela objetiva é zero; a aprendizagem qualitativa pode pontuar. Trocar não gera bônus por si só. Os 40 pontos qualitativos existentes consideram diagnóstico, estratégia, reciprocidade, comunicação e ética com evidências. Não há nota adicional de sourcing somada aos 100.
 

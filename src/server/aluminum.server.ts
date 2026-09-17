@@ -349,7 +349,7 @@ export function generateAluminum(
       confianca: index === 0 ? baseState.confianca : 45,
       frustracao: 25,
       abertura: 50,
-      degrau: 0,
+      concessionDepth: 0,
       contrapartidas: [],
       eventosOcorridos: [],
       tentativasIndevidas: 0,
