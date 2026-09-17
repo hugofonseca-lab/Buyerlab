@@ -25,6 +25,8 @@ Forma fechada: preço no piso com as contrapartidas mais frouxas exigidas nesse 
 
 Diagnóstico 10; estratégia 10; reciprocidade 8; comunicação 6; ética/processo 6. OpenAI recebe critérios e mensagens e retorna IDs, trechos literais, impacto e recomendação. Validador rejeita evidência inexistente, critérios duplicados, notas fora do máximo e justificativas curtas demais. Sem evidência, zero. A IA não altera os pontos objetivos.
 
+Em **impasse** (nenhum acordo fechado), os pontos qualitativos avaliados são reduzidos a 25% do valor antes de somar à nota final (`coach.server.ts`) — a nota reflete principalmente o resultado real da negociação, não só a qualidade isolada do processo quando nada foi fechado.
+
 Fallback por tags gera referências reais aos turnos e é marcado **provisório**. Validação garante integridade estrutural/literal, mas não comprova qualidade pedagógica de toda interpretação. Revisão humana segue apropriada.
 
 Coach apresenta três forças (declara insuficiência de evidência quando necessário), três prioridades, erros, riscos e próxima ação. Total é a soma das nove competências.

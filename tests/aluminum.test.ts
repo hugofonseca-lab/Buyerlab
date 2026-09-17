@@ -139,7 +139,9 @@ describe("alumínio paramétrico", () => {
             expect(imported.fxRisk).toBeGreaterThan(0);
             expect(sourcingBenchmark(a).cost).toBeGreaterThan(0);
             const frozen = structuredClone(instance);
-            negotiate(a);
+            // 8 turnos cobre o próprio orçamento do avançado (ritmo de concessão mais lento);
+            // iniciante/intermediário chegam ao piso bem antes disso, sem prejuízo.
+            negotiate(a, 8);
             expect(a.aluminum!.instance).toEqual(frozen);
             const final = complete(a);
             expect(final.relatorio!.resultado).toBe("acordo");

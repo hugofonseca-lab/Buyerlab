@@ -139,13 +139,14 @@ export function computeEnvelope(stored: StoredRun, tags: BuyerActionTag[]): Conc
     ? currentDepth
     : Math.min(trustCeiling, reciprocityCeiling, argumentGateDepth, reciprocityGateDepth);
 
+  const pacing = rules.concessionPacing[stored.run.dificuldade];
   const constructive = tags.some((t) => CONSTRUCTIVE_TAGS.includes(t));
   let step = 0;
   if (constructive && !unsafe) {
-    step = rules.concessionPacing.baseStep;
-    if (hasArgument) step += rules.concessionPacing.argumentBonus;
-    if (hasReciprocity) step += rules.concessionPacing.reciprocityBonus;
-    step = Math.min(rules.concessionPacing.maxStep, step);
+    step = pacing.baseStep;
+    if (hasArgument) step += pacing.argumentBonus;
+    if (hasReciprocity) step += pacing.reciprocityBonus;
+    step = Math.min(pacing.maxStep, step);
   }
   const maxDepthThisTurn = Math.max(currentDepth, Math.min(depthCeiling, currentDepth + step));
 

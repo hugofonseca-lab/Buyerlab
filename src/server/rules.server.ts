@@ -27,12 +27,20 @@ export const rules = {
   ],
   operational: { minLead: 10, maxOtif: 98, minDefects: 0.5, maxWarranty: 24 },
   /**
-   * Ritmo máximo de concessão contínua por turno (profundidade 0..1). baseStep replica o antigo
-   * avanço de "um degrau inteiro" (1/5 = 0.2) sempre que o turno tem uma tag construtiva; os
-   * bônus permitem turnos muito bem argumentados/recíprocos avançarem mais rápido, sempre
-   * limitados pelo teto de confiança/reciprocidade já conquistado (nunca abrem exceção a ele).
+   * Ritmo máximo de concessão contínua por turno (profundidade 0..1), por dificuldade — sem isso,
+   * um roteiro bem argumentado chegava ao piso em ~4 mensagens em qualquer dificuldade, tornando
+   * o limite de turnos (a única outra diferença) quase irrelevante na prática. Em avançado, um
+   * turno ótimo a cada mensagem só alcança o piso bem no último turno permitido; qualquer mensagem
+   * neutra no meio do caminho já impede chegar lá. baseStep replica o antigo avanço de "um degrau
+   * inteiro" (1/5 = 0.2) em iniciante; os bônus permitem turnos muito bem argumentados/recíprocos
+   * avançarem mais rápido, sempre limitados pelo teto de confiança/reciprocidade já conquistado
+   * (nunca abrem exceção a ele).
    */
-  concessionPacing: { baseStep: 0.2, argumentBonus: 0.05, reciprocityBonus: 0.05, maxStep: 0.3 },
+  concessionPacing: {
+    iniciante: { baseStep: 0.2, argumentBonus: 0.05, reciprocityBonus: 0.05, maxStep: 0.3 },
+    intermediario: { baseStep: 0.12, argumentBonus: 0.04, reciprocityBonus: 0.04, maxStep: 0.2 },
+    avancado: { baseStep: 0.07, argumentBonus: 0.03, reciprocityBonus: 0.03, maxStep: 0.13 },
+  },
   score: {
     lead: [5, 2],
     stock: 4,

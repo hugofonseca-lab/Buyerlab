@@ -18,7 +18,7 @@ import {
 } from "./providers.server";
 import { validateDeal } from "./evaluator.server";
 import { coach } from "./coach.server";
-import { randomSeed } from "../lib/prng";
+import { createRng, pick, randomSeed } from "../lib/prng";
 import type { StoredRun } from "./model";
 import { liveMarket } from "./live-market.server";
 import { marketIndicators } from "./market-indicators.server";
@@ -34,6 +34,14 @@ async function marketFor(config: RunConfig) {
   return liveMarket.getSnapshot();
 }
 
+// Com preço contínuo, a posição pública muda quase todo turno (antes só pulava ~5-6 vezes em toda
+// a negociação); sem variação, o lembrete final soava repetitivo em cada mensagem.
+const CLOSING_REMINDERS = [
+  "A aceitação depende da confirmação do pacote completo.",
+  "Isso ainda é posição de trabalho; só vira acordo com o pacote completo confirmado.",
+  "Nada disso está fechado até a confirmação explícita do pacote inteiro.",
+  "Vale como referência até a Orion estruturar e confirmar a proposta completa.",
+];
 class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -243,10 +251,14 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
             commitOffer(stored, output.value.proposedPrice, envelope);
             const offer = stored.estadoPublico.ofertaPublica;
             const offerChanged = previousOffer !== JSON.stringify(offer);
+            const reminder = pick(
+              createRng(stored.run.seed, `recap-${stored.estadoPublico.turno}`),
+              CLOSING_REMINDERS,
+            );
             const text =
               offerChanged ||
               tags.some((tag) => ["proposta", "ancoragem", "fechamento"].includes(tag))
-                ? `${output.value.supplierMessage}\n\nPosição pública: R$ ${offer.precoUnitario.toFixed(2).replace(".", ",")} por ${stored.aluminum ? "tonelada" : "unidade"}. ${offer.contrapartidas.join("; ")}. A aceitação depende da confirmação do pacote completo.`
+                ? `${output.value.supplierMessage}\n\nPosição pública: R$ ${offer.precoUnitario.toFixed(2).replace(".", ",")} por ${stored.aluminum ? "tonelada" : "unidade"}. ${offer.contrapartidas.join("; ")}. ${reminder}`
                 : output.value.supplierMessage;
             stored.mensagens.push(makeMessage(stored, "fornecedor", text));
             // Aceite explícito do comprador no chat ("aceito a proposta"...) encerra o

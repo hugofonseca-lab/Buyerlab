@@ -67,7 +67,9 @@ describe("matriz: 90 configurações × 12 seeds × 6 contextos, com replay", ()
             expect(run.config).toEqual(canonical.config);
           }
           let previousPrice = 118;
-          for (let turn = 0; turn < 6 && !run.estadoPublico.encerrada; turn++) {
+          // 8 turnos cobre o próprio orçamento do avançado (o mais lento a ceder); iniciante e
+          // intermediário têm mais turnos disponíveis e já chegam ao piso bem antes disso.
+          for (let turn = 0; turn < 8 && !run.estadoPublico.encerrada; turn++) {
             const text = script[turn % script.length]!;
             const tags = advance(run, text);
             advance(replay, text);
@@ -116,7 +118,7 @@ describe("matriz: 90 configurações × 12 seeds × 6 contextos, com replay", ()
             expect(previousPrice).toBe(118);
           const offer = {
             ...offerDefaults,
-            precoUnitario: 105,
+            precoUnitario: run.estadoPublico.ofertaPublica.precoUnitario,
             duracaoMeses: 18,
             forecastCongeladoDias: 60,
             pagamentoDias: 15,

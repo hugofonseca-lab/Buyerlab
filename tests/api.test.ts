@@ -219,7 +219,7 @@ describe("API persistente e autorizada", () => {
         await call(null, `/api/simulations/${id}`, undefined, started.cookie);
         const offer = {
           ...offerDefaults,
-          precoUnitario: 105,
+          precoUnitario: states.at(-1)!.ofertaPublica.precoUnitario,
           duracaoMeses: 18,
           forecastCongeladoDias: 60,
           pagamentoDias: 15,

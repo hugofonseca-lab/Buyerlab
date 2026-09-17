@@ -36,7 +36,18 @@ export function coach(
   const offer = stored.propostaFinal!;
   const sourcing = stored.aluminum ? sourcingScores(stored, outcome) : null;
   const deterministic = sourcing?.scores ?? deterministicScores(offer, outcome);
-  const scores = [...deterministic, ...qualitative];
+  // Sem acordo, os pontos objetivos já são zero; a qualitativa também é bastante reduzida (25%),
+  // para a nota final refletir principalmente o resultado real da negociação, não só a
+  // qualidade do processo isolada do desfecho.
+  const IMPASSE_QUALITATIVE_FACTOR = 0.25;
+  const qualitativeAdjusted =
+    outcome === "impasse"
+      ? qualitative.map((s) => ({
+          ...s,
+          pontos: Math.round(s.pontos * IMPASSE_QUALITATIVE_FACTOR),
+        }))
+      : qualitative;
+  const scores = [...deterministic, ...qualitativeAdjusted];
   const best = sourcing?.best ?? bestFeasible();
   const price = outcome === "impasse" || outcome === "encerrado" ? null : offer.precoUnitario;
   const strong = scores
@@ -85,7 +96,7 @@ export function coach(
             blueprint.mandato.demandaMensal,
         ),
     determinantes: deterministic,
-    qualitativas: qualitative,
+    qualitativas: qualitativeAdjusted,
     fortes: strong,
     oportunidades: priorities,
     errosCriticos: [
