@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, BarChart3, BrainCircuit, Repeat2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MarketIndicatorsPanel } from "@/components/buyerlab/market-indicators-panel";
 import { PageShell } from "@/components/buyerlab/site-shell";
 
 export const Route = createFileRoute("/")({
@@ -100,6 +101,9 @@ function HomePage() {
       </section>
       <section className="border-b bg-background py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-12">
+            <MarketIndicatorsPanel />
+          </div>
           <div className="grid gap-px overflow-hidden rounded-lg border bg-border md:grid-cols-3">
             <Feature
               icon={<BrainCircuit />}
