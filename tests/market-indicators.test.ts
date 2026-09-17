@@ -123,6 +123,26 @@ describe("indicadores de mercado", () => {
     expect(snapshot.fallbackUsed).toBe(true);
     expect(snapshot.warnings.some((w) => w.includes("Alumínio"))).toBe(true);
   });
+  it("Alpha Vantage em limite de requisições cai para simulado com aviso legível", async () => {
+    const fetcher = fixture({
+      ptaxDayByDate: { "09-17-2026": ptaxDay(5.15, 5.16, "2026-09-17") },
+      alphaVantageResponse: {
+        Information:
+          "We have detected your API key as TESTE123 and our standard API rate limit is 25 requests per day.",
+      },
+    });
+    const provider = new MarketIndicatorsProvider({
+      fetcher,
+      now: () => now,
+      alphaVantageKey: () => "chave-teste",
+    });
+    const snapshot = await provider.getSnapshot();
+    expect(snapshot.aluminum.status).toBe("simulado");
+    expect(snapshot.fallbackUsed).toBe(true);
+    expect(snapshot.warnings.some((w) => w.includes("Alumínio") && w.includes("rate limit"))).toBe(
+      true,
+    );
+  });
   it("IBGE SIDRA: parseia série PIM-PF e ordena por competência", async () => {
     const fetcher = fixture({ ptaxDayByDate: { "09-17-2026": ptaxDay(5.15, 5.16, "2026-09-17") } });
     const provider = new MarketIndicatorsProvider({

@@ -206,7 +206,18 @@ export class MarketIndicatorsProvider {
         "ALPHA_VANTAGE_API_KEY não configurada; gere uma chave gratuita em alphavantage.co.",
       );
     const url = `https://www.alphavantage.co/query?function=ALUMINUM&interval=monthly&apikey=${encodeURIComponent(key)}`;
-    const data = alphaVantageSchema.parse(await this.json(url));
+    const raw = await this.json(url);
+    // Alpha Vantage devolve 200 OK mesmo em limite/erro, só que sem "data" — nesses casos o corpo
+    // costuma trazer uma dessas chaves com uma mensagem legível, que é bem mais útil no aviso do
+    // que o erro genérico de schema.
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      const info =
+        (raw as Record<string, unknown>)["Information"] ??
+        (raw as Record<string, unknown>)["Note"] ??
+        (raw as Record<string, unknown>)["Error Message"];
+      if (typeof info === "string") throw new Error(`Alpha Vantage: ${info}`);
+    }
+    const data = alphaVantageSchema.parse(raw);
     const points = data.data
       .map((entry) => ({ date: entry.date, value: Number(entry.value) }))
       .filter((p) => Number.isFinite(p.value) && p.value > 0)
