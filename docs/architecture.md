@@ -7,7 +7,8 @@ TanStack Start/React/Tailwind preservados. Nitro usa `node-server`; o wrapper SS
 ```mermaid
 flowchart LR
   UI[React: briefing, chat, proposta, relatório] --> API[API / sessão HttpOnly]
-  API --> Engine[State Engine]
+  API --> Classifier[Regex + classify() de IA opcional]
+  Classifier --> Engine[State Engine: advanceWithTags]
   Blueprint[Blueprint versionado] --> Engine
   Engine --> Actor[Supplier Actor: OpenAI, Gemini ou Mock]
   Engine --> Evaluator[Evaluator determinístico]
@@ -16,6 +17,8 @@ flowchart LR
   Qual --> Coach
   API --> DB[(SQLite / migrations)]
 ```
+
+O classificador de intenção do comprador é sempre regex primeiro (`classifyBuyerMessage`), que decide sozinho as tags de segurança (antietico/extração de sistema). Só quando o regex não reconhece nada ("neutro") e há IA configurada, `provider.classify()` complementa com o mesmo vocabulário fechado de tags — nunca abre a classificação para texto livre, e o motor (`advanceWithTags`) continua sendo o único a decidir estado a partir das tags, venham elas de onde vierem.
 
 ## Separação
 

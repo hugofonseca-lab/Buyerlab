@@ -1,7 +1,14 @@
 import { z } from "zod";
 import { Store, digest } from "./store.server";
 import { commandSchema } from "./validation.server";
-import { advance, createRun, makeMessage, publicSnapshot, switchSupplier } from "./engine.server";
+import {
+  advanceWithTags,
+  createRun,
+  makeMessage,
+  publicSnapshot,
+  switchSupplier,
+} from "./engine.server";
+import { classifyBuyerMessage } from "../simulation/classifier";
 import {
   configuredProvider,
   MockSimulationProvider,
@@ -176,9 +183,28 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
                 "O turno já mudou. Recarregue a execução antes de enviar.",
               );
             const previousOffer = JSON.stringify(stored.estadoPublico.ofertaPublica);
-            const tags = advance(stored, command.text);
             const mock = new MockSimulationProvider();
-            const useMock = command.forceMock || tags.includes("antietico");
+            const baseTags = classifyBuyerMessage(command.text);
+            const useMock = command.forceMock || baseTags.includes("antietico");
+            let tags = baseTags;
+            // O regex não reconheceu nada de acionável: se houver um provedor de IA real
+            // configurado, deixa ele classificar a mesma mensagem no mesmo vocabulário fechado
+            // de tags, em vez de travar a negociação exigindo uma frase "mágica" específica. A
+            // checagem de segurança acima (antietico) já rodou e nunca depende dessa etapa.
+            if (
+              !useMock &&
+              baseTags.length === 1 &&
+              baseTags[0] === "neutro" &&
+              !(provider instanceof MockSimulationProvider)
+            ) {
+              const enriched = await withFallback(
+                () => provider.classify(stored!, command.text),
+                () => Promise.resolve<typeof baseTags>([]),
+                8000,
+              );
+              if (enriched.value.length > 0) tags = enriched.value;
+            }
+            advanceWithTags(stored, command.text, tags);
             const output = await withFallback(
               () => (useMock ? mock.reply(stored!, tags) : provider.reply(stored!, tags)),
               () => mock.reply(stored!, tags),

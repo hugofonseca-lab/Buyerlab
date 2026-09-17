@@ -91,6 +91,28 @@ describe("provedor Gemini", () => {
     expect(result.length).toBe(reference.length);
     expect(result.every((c) => c.pontos === 0)).toBe(true);
   });
+  it("classify: usa o mesmo vocabulário fechado de tags do regex", async () => {
+    const run = createRun(config);
+    const provider = new GeminiSimulationProvider("modelo-teste", "chave-ficticia");
+    const internal = internalClientOf(provider);
+    vi.spyOn(internal.client.models, "generateContent").mockResolvedValue({
+      text: JSON.stringify({ tags: ["ancoragem", "troca_condicional"] }),
+    });
+    const tags = await provider.classify(
+      run,
+      "Partimos de um valor referência, condicionado a volume.",
+    );
+    expect(tags).toEqual(["ancoragem", "troca_condicional"]);
+  });
+  it("classify: tag fora do vocabulário fechado é rejeitada (esquema fecha o conjunto)", async () => {
+    const run = createRun(config);
+    const provider = new GeminiSimulationProvider("modelo-teste", "chave-ficticia");
+    const internal = internalClientOf(provider);
+    vi.spyOn(internal.client.models, "generateContent").mockResolvedValue({
+      text: JSON.stringify({ tags: ["inventada_pela_ia"] }),
+    });
+    await expect(provider.classify(run, "qualquer coisa")).rejects.toThrow();
+  });
   it("resposta vazia ou fora do schema não quebra o processo (erro tratado por withFallback no chamador)", async () => {
     const run = createRun(config);
     const provider = new GeminiSimulationProvider("modelo-teste", "chave-ficticia");

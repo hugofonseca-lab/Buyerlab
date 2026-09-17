@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../src/lib/prng";
-import { advance, createRun } from "../src/server/engine.server";
+import { advance, advanceWithTags, createRun } from "../src/server/engine.server";
 import { emotions, rules } from "../src/server/rules.server";
 import {
   bestFeasible,
@@ -50,6 +50,29 @@ describe("motor e avaliação", () => {
     expect(createRun({ ...config, seed: "OUTRA" }).privateState).not.toEqual(
       createRun(config).privateState,
     );
+  });
+  it("advanceWithTags: o motor decide o estado só a partir das tags, não do texto", () => {
+    // Mesma frase em texto livre, sem nenhuma palavra-chave do regex (classifyBuyerMessage
+    // classificaria isso como "neutro"), mas com tags equivalentes às de `effective[0]`
+    // fornecidas externamente (como viria de um classificador de IA). O estado resultante deve
+    // ser idêntico ao de `advance` com a frase original que o regex de fato reconhece.
+    const viaRegex = createRun(config),
+      viaTagsExternas = createRun(config);
+    advance(viaRegex, effective[0]!);
+    advanceWithTags(viaTagsExternas, "Oi, tudo bem? Queria só bater um papo sobre a parceria.", [
+      "pergunta_aberta",
+      "diagnostico",
+      "uso_de_dados",
+      "empatia",
+    ]);
+    expect(viaTagsExternas.privateState).toEqual(viaRegex.privateState);
+    expect(viaTagsExternas.disclosures).toEqual(viaRegex.disclosures);
+    expect(viaTagsExternas.mensagens.at(-1)!.acoes).toEqual([
+      "pergunta_aberta",
+      "diagnostico",
+      "uso_de_dados",
+      "empatia",
+    ]);
   });
   it("avaliação controla condições e evento", () => {
     const a = createRun({ ...config, modo: "avaliacao" }),

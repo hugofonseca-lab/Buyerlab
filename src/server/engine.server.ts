@@ -251,14 +251,23 @@ export function maybeEvent(stored: StoredRun): void {
     break;
   }
 }
-export function advance(stored: StoredRun, text: string): BuyerActionTag[] {
+/**
+ * Avança o estado a partir de tags já decididas (regex ou, quando configurado, um classificador
+ * de IA restrito ao mesmo vocabulário fechado de BuyerActionTag — ver classify() em
+ * providers.server.ts). O motor continua sendo o único a decidir estado a partir das tags; só a
+ * origem da classificação pode variar.
+ */
+export function advanceWithTags(
+  stored: StoredRun,
+  text: string,
+  tags: BuyerActionTag[],
+): BuyerActionTag[] {
   const { rules } = contextFor(stored);
   if (
     stored.estadoPublico.encerrada ||
     stored.estadoPublico.turno >= stored.estadoPublico.turnosMaximos
   )
     throw new Error("Negociação encerrada. Estruture a proposta final.");
-  const tags = classifyBuyerMessage(text);
   stored.estadoPublico.turno++;
   stored.run.status = "negociacao";
   evolve(stored, tags, extractRelevantCounterparts(text));
@@ -294,6 +303,10 @@ export function advance(stored: StoredRun, text: string): BuyerActionTag[] {
       stored.privateState,
     );
   return tags;
+}
+/** Classifica por regex e avança — comportamento inalterado para todo chamador existente. */
+export function advance(stored: StoredRun, text: string): BuyerActionTag[] {
+  return advanceWithTags(stored, text, classifyBuyerMessage(text));
 }
 
 export function switchSupplier(stored: StoredRun, supplierId: string, reason: string) {

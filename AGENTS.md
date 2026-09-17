@@ -23,7 +23,7 @@
 - Sensíveis: `.env`, `.data/`, cookies, tokens e logs. Nunca versionar. `.env.example` sem segredos.
 - Cliente importa somente cenário público e contratos. `src/server/*.server.ts` é exclusivo do servidor.
 - Blueprint: `scenario.server.ts` + `rules.server.ts`; versionar mudanças de condições/matriz.
-- Engine decide estados, eventos, degraus, acordo e pontos objetivos. IA apenas verbaliza e avalia evidências.
+- Engine decide estados, eventos, degraus, acordo e pontos objetivos **a partir de tags** (BuyerActionTag). IA verbaliza, avalia evidências e, quando configurada, também pode classificar a mensagem do comprador nessas mesmas tags (`classify()`) — nunca decide o estado diretamente; quem decide é sempre `advanceWithTags` no motor.
 - Alteração de engine exige testes de seed, viabilidade, segurança, idempotência e avaliação.
 - SQLite exige um processo Node e disco persistente; não usar em Workers ou filesystem efêmero.
 - Migrations em `migrations/` aplicadas ao iniciar a API. Banco sempre fora de `public/`.
@@ -33,3 +33,4 @@
 - Contrato atual do fornecedor: dado hipotético/mockado gerado em `aluminum.server.ts` (`generateSupplierContract`), tabela `supplier_contracts` (`003_supplier_contracts.sql`), endpoint `/api/simulations/:id/contrato`. Ver `docs/aluminum.md`.
 - Painel de indicadores do dossiê (`market-indicators.server.ts`, `GET /api/market-indicators`) é independente do benchmark de negociação acima; não usar para pontuação. PTAX, IBGE SIDRA e Comex Stat são públicos; alumínio exige `ALPHA_VANTAGE_API_KEY` própria, nunca expor a chave. Ver `docs/market-data.md`.
 - Fornecedor por IA aceita OpenAI (`BUYERLAB_PROVIDER=openai`, padrão) ou Gemini (`BUYERLAB_PROVIDER=gemini`), com o mesmo texto de instruções e o mesmo payload de contexto (`REPLY_INSTRUCTIONS`/`EVALUATE_INSTRUCTIONS`/`buildReplyPayload`/`buildEvaluatePayload` em `providers.server.ts`). Não deixar os dois provedores divergirem nas instruções de segurança.
+- Classificação de intenção do comprador: `classifyBuyerMessage` (regex, `simulation/classifier.ts`) decide sozinho as tags de segurança (`antietico`/`extracao_de_sistema`) — isso nunca passa pela IA. Quando o regex não reconhece nada acionável ("neutro") e há um provedor de IA real configurado, `provider.classify()` (mesmo vocabulário fechado de `BuyerActionTag`, exceto as tags de segurança e "neutro") enriquece a classificação antes de `advanceWithTags`. Timeout curto (8s) e fallback para as tags do regex; nunca bloqueia a negociação. Ver `api.server.ts` (fluxo de `action: "message"`) e `CLASSIFIABLE_TAGS` em `providers.server.ts`.

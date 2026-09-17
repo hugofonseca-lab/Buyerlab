@@ -86,6 +86,26 @@ describe("alumínio paramétrico", () => {
     expect(parse).toHaveBeenCalledTimes(1);
     parse.mockRestore();
   });
+  it("classify: usa vocabulário fechado de tags e nunca decide sozinho o estado", async () => {
+    const run = createRun(config);
+    const provider = new OpenAISimulationProvider("modelo-de-teste", "chave-ficticia-de-teste");
+    const internal = provider as unknown as {
+      client: {
+        responses: {
+          parse: (input: { input: string }) => Promise<{ output_parsed: { tags: string[] } }>;
+        };
+      };
+    };
+    const parse = vi
+      .spyOn(internal.client.responses, "parse")
+      .mockResolvedValue({ output_parsed: { tags: ["diagnostico", "proposta"] } });
+    const tags = await provider.classify(run, "Quero entender melhor o que vocês propõem.");
+    expect(tags).toEqual(["diagnostico", "proposta"]);
+    expect(parse).toHaveBeenCalledTimes(1);
+    // classify() só informa tags; quem decide o estado continua sendo advanceWithTags no motor.
+    expect(run.privateState.degrau).toBe(0);
+    parse.mockRestore();
+  });
   it("540 combinações: seed, faixas, trade-offs, benchmark e rota viável", () => {
     const variants = new Set<string>();
     for (const material of MATERIALS)

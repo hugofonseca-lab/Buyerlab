@@ -4,8 +4,9 @@ import { marketIndicators } from "../src/server/market-indicators.server";
 import { STATIC_MARKET } from "../src/server/market.server";
 import { Store } from "../src/server/store.server";
 import { createApi } from "../src/server/api.server";
-import { MockSimulationProvider } from "../src/server/providers.server";
+import { MockSimulationProvider, type SupplierProvider } from "../src/server/providers.server";
 import { offerDefaults } from "../src/domain/offer-defaults";
+import type { BuyerActionTag, CompetencyScore } from "../src/domain/types";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -370,5 +371,41 @@ describe("API persistente e autorizada", () => {
     await call({ action: "finalize", runId: id, offer: offerDefaults, accepted: true });
     const report = await call({ action: "evaluate", runId: id });
     expect(report.body.avaliacaoProvisoria).toBe(true);
+  });
+  it("mensagem neutra aciona classify() do provedor de IA; texto com tag do regex não aciona", async () => {
+    let classifyCalls = 0;
+    class FakeAIProvider implements SupplierProvider {
+      async reply(): Promise<string> {
+        return "Vamos avançar com transparência sobre os termos.";
+      }
+      async evaluate(): Promise<CompetencyScore[]> {
+        return [];
+      }
+      async classify(): Promise<BuyerActionTag[]> {
+        classifyCalls++;
+        return ["diagnostico", "pergunta_aberta"];
+      }
+    }
+    const { call } = setup(":memory:", new FakeAIProvider());
+    const start = await call({ action: "start", config });
+    const id = start.body.id;
+    // Texto sem nenhuma palavra-chave do regex: classifyBuyerMessage retorna só "neutro".
+    const neutral = await call({
+      action: "message",
+      runId: id,
+      text: "Bom dia. Vamos conversar sobre isso.",
+      expectedTurn: 0,
+    });
+    expect(neutral.status).toBe(200);
+    expect(classifyCalls).toBe(1);
+    // "Proponho" já é reconhecido pelo regex (tag "proposta"): não precisa enriquecer com IA.
+    const withTag = await call({
+      action: "message",
+      runId: id,
+      text: "Proponho um novo prazo de entrega para o pedido.",
+      expectedTurn: 1,
+    });
+    expect(withTag.status).toBe(200);
+    expect(classifyCalls).toBe(1);
   });
 });
