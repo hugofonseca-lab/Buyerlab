@@ -271,6 +271,29 @@ describe("API persistente e autorizada", () => {
     expect((await second.call(null, `/api/simulations/${id}`, undefined, "")).status).toBe(404);
     expect(JSON.stringify(resumed.body)).not.toMatch(/privateState|confianca|probabilidade|escada/);
   });
+  it("aceite explícito no chat encerra o treinamento e já gera o relatório", async () => {
+    const { call } = setup();
+    const start = await call({ action: "start", config });
+    const id = start.body.id;
+    await call({ action: "message", runId: id, text: "Olá", expectedTurn: 0 });
+    const accept = await call({
+      action: "message",
+      runId: id,
+      text: "Perfeito, aceito a proposta de vocês.",
+      expectedTurn: 1,
+    });
+    expect(accept.status).toBe(200);
+    expect(accept.body.snapshot.estadoPublico.encerrada).toBe(true);
+    expect(accept.body.snapshot.relatorio).toBeTruthy();
+    expect(accept.body.snapshot.propostaFinal).toBeTruthy();
+    expect(await call({ action: "evaluate", runId: id })).toMatchObject({ status: 200 });
+    expect(
+      await call({ action: "message", runId: id, text: "Mais uma mensagem", expectedTurn: 2 }),
+    ).toMatchObject({ status: 409 });
+    expect(
+      (await call({ action: "finalize", runId: id, offer: offerDefaults, accepted: true })).status,
+    ).toBe(409);
+  });
   it("finaliza uma vez, avalia, compartilha só relatório e repete seeds", async () => {
     const { call } = setup();
     const start = await call({ action: "start", config });

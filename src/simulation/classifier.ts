@@ -83,6 +83,22 @@ export function classifyBuyerMessage(raw: string): BuyerActionTag[] {
   return tags.size > 0 ? [...tags] : ["neutro"];
 }
 
+const ACCEPTANCE_PATTERN =
+  /\b(aceito|aceitamos|aceita(?:da|do)?|concordo|concordamos|fechado)\b[^.?!\n]{0,40}\b(proposta|acordo|oferta|condiç(?:ão|ões)|termos|pacote|preço|valor)\b/;
+const ACCEPTANCE_NEGATION =
+  /\bn[ãa]o\b[^.?!\n]{0,20}\b(aceito|aceitamos|aceita(?:da|do)?|concordo|concordamos)\b/;
+
+/**
+ * Reconhece um aceite explícito e inequívoco do comprador ("aceito a proposta", "concordamos com
+ * o acordo"...), distinto da tag "fechamento" (que só sinaliza intenção de encerrar/formalizar).
+ * Usado em api.server.ts para encerrar o treinamento e gerar o relatório automaticamente a partir
+ * da posição pública negociada — nunca a partir de uma alegação do fornecedor/IA.
+ */
+export function isExplicitAcceptance(raw: string): boolean {
+  const text = raw.toLocaleLowerCase("pt-BR");
+  return ACCEPTANCE_PATTERN.test(text) && !ACCEPTANCE_NEGATION.test(text);
+}
+
 export function extractRelevantCounterparts(raw: string): string[] {
   const text = raw.toLocaleLowerCase("pt-BR");
   const found: string[] = [];

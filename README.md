@@ -100,7 +100,7 @@ E2E inicia build em modo mock e usa `.data/e2e.sqlite`. Não testar contra servi
 
 A cobertura de perfis, seeds, eventos e contextos está descrita em [Validação das variações](docs/variation-validation.md). A matriz automatizada inclui 6.480 execuções e seus replays; não representa cobertura de toda linguagem natural possível.
 
-Abra `/configurar?modo=treinamento&perfil=colaborativo&seed=DEMO2026`. Leia o dossiê, investigue custos/forecast, use dados e trocas condicionais. Estruture e confirme a proposta. Recarregar retoma a sessão. Mesma seed preserva condições; nova variação gera outra seed. Copiar link cria acesso ao relatório por sete dias. Imprimir/salvar usa o navegador.
+Abra `/configurar?modo=treinamento&perfil=colaborativo&seed=DEMO2026`. Leia o dossiê, investigue custos/forecast, use dados e trocas condicionais. Estruture e confirme a proposta — ou aceite diretamente no chat (ex.: "aceito a proposta"), o que encerra o treinamento e gera o relatório automaticamente a partir da posição pública negociada até ali. Recarregar retoma a sessão. Mesma seed preserva condições; nova variação gera outra seed. Copiar link cria acesso ao relatório por sete dias. Imprimir/salvar usa o navegador.
 
 [Roteiro de cinco minutos](docs/demo-script.md) · [Arquitetura](docs/architecture.md) · [Cenário](docs/scenario-authoring.md) · [Pontuação](docs/scoring.md) · [Segurança](docs/security.md) · [Descrição da solução](docs/solution-description.md).
 

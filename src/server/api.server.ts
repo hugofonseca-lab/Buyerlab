@@ -9,7 +9,7 @@ import {
   publicSnapshot,
   switchSupplier,
 } from "./engine.server";
-import { classifyBuyerMessage } from "../simulation/classifier";
+import { classifyBuyerMessage, isExplicitAcceptance } from "../simulation/classifier";
 import {
   configuredProvider,
   MockSimulationProvider,
@@ -22,7 +22,7 @@ import { randomSeed } from "../lib/prng";
 import type { StoredRun } from "./model";
 import { liveMarket } from "./live-market.server";
 import { marketIndicators } from "./market-indicators.server";
-import type { RunConfig } from "../domain/types";
+import type { Outcome, RunConfig, StructuredFinalOffer } from "../domain/types";
 
 async function marketFor(config: RunConfig) {
   if (
@@ -45,6 +45,29 @@ class ApiError extends Error {
 }
 export function createApi(store: Store, provider: SupplierProvider = configuredProvider()) {
   const queues = new Map<string, Promise<unknown>>();
+  /** Encerra e avalia a execução a partir de uma proposta final, seja a estruturada explicitamente
+   * pelo comprador (action "finalize") ou a construída a partir da posição pública negociada
+   * quando o comprador aceita diretamente no chat (ver isExplicitAcceptance). */
+  async function finalizeRun(stored: StoredRun, offer: StructuredFinalOffer): Promise<Outcome> {
+    const decision = validateDeal(stored, offer);
+    stored.propostaFinal = offer;
+    stored.estadoPublico.encerrada = true;
+    stored.run.status = "concluida";
+    if (stored.aluminum) stored.aluminum.finalSupplierId = stored.aluminum.activeSupplierId;
+    const mock = new MockSimulationProvider();
+    const evaluation = await withFallback(
+      () => provider.evaluate(stored),
+      () => mock.evaluate(stored),
+    );
+    stored.relatorio = coach(
+      stored,
+      decision.outcome,
+      decision.reason,
+      evaluation.value,
+      evaluation.fallback || provider instanceof MockSimulationProvider,
+    );
+    return decision.outcome;
+  }
   async function serialized<T>(owner: string, task: () => Promise<T>): Promise<T> {
     const previous = queues.get(owner) ?? Promise.resolve();
     const next = previous.catch(() => undefined).then(task);
@@ -226,6 +249,12 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
                 ? `${output.value.supplierMessage}\n\nPosição pública: R$ ${offer.precoUnitario.toFixed(2).replace(".", ",")} por ${stored.aluminum ? "tonelada" : "unidade"}. ${offer.contrapartidas.join("; ")}. A aceitação depende da confirmação do pacote completo.`
                 : output.value.supplierMessage;
             stored.mensagens.push(makeMessage(stored, "fornecedor", text));
+            // Aceite explícito do comprador no chat ("aceito a proposta"...) encerra o
+            // treinamento e gera o relatório a partir da posição pública negociada até aqui —
+            // nunca a partir de uma alegação do fornecedor/IA (validateActor continua banindo
+            // esse tipo de frase na fala dele).
+            if (!stored.relatorio && isExplicitAcceptance(command.text))
+              await finalizeRun(stored, publicSnapshot(stored).suggestedOffer!);
             value = {
               snapshot: publicSnapshot(stored),
               novosEventos: stored.estadoPublico.eventos.filter(
@@ -267,24 +296,7 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
           } else if (command.action === "finalize") {
             if (stored.relatorio)
               throw new ApiError(409, "FINALIZED", "Esta execução já foi finalizada.");
-            const decision = validateDeal(stored, command.offer);
-            stored.propostaFinal = command.offer;
-            stored.estadoPublico.encerrada = true;
-            stored.run.status = "concluida";
-            if (stored.aluminum) stored.aluminum.finalSupplierId = stored.aluminum.activeSupplierId;
-            const mock = new MockSimulationProvider();
-            const evaluation = await withFallback(
-              () => provider.evaluate(stored!),
-              () => mock.evaluate(stored!),
-            );
-            stored.relatorio = coach(
-              stored,
-              decision.outcome,
-              decision.reason,
-              evaluation.value,
-              evaluation.fallback || provider instanceof MockSimulationProvider,
-            );
-            value = decision.outcome;
+            value = await finalizeRun(stored, command.offer);
           } else if (command.action === "evaluate") {
             if (!stored.relatorio)
               throw new ApiError(409, "NOT_FINALIZED", "Finalize a execução antes da avaliação.");

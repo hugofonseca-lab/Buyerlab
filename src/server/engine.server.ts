@@ -14,6 +14,7 @@ import { deltas, emotions, ENGINE_VERSION, profileWeights, rules } from "./rules
 import type { StoredRun } from "./model";
 import { activeSupplier, contextFor, generateAluminum, publicBlueprint } from "./aluminum.server";
 import { sourcingCost } from "./sourcing-score.server";
+import { offerDefaults } from "../domain/offer-defaults";
 import {
   computeEnvelope,
   depthFromPrice,
@@ -45,19 +46,26 @@ export function publicSnapshot(stored: StoredRun): RunSnapshot {
         true,
       ),
     };
-    const rows = contextFor(stored).rules.packages as PackageRow[];
-    const depth = stored.privateState.concessionDepth;
-    const terms = termsAt(rows, depth);
-    result.suggestedOffer = {
-      ...stored.aluminum.blueprint.ofertaInicialComprador,
-      precoUnitario: priceAt(rows, depth),
-      volumeMinimoMensal: Math.round(terms.volumeMinimoMensal),
-      duracaoMeses: Math.max(12, Math.round(terms.duracaoMeses)),
-      forecastCongeladoDias: Math.max(30, Math.round(terms.forecastCongeladoDias)),
-      pagamentoDias: Math.round(terms.pagamentoDias),
-      contrapartidas: stored.estadoPublico.ofertaPublica.contrapartidas.join("; "),
-    };
   }
+  // Traduz a posição pública negociada (contínua) para o formato de proposta estruturada — usada
+  // tanto para pré-preencher "Estruturar proposta" quanto para o aceite direto no chat (ver
+  // isExplicitAcceptance em api.server.ts). Proteções não rastreadas na oferta pública (SLA,
+  // garantia, contingência etc.) vêm da base do comprador, nunca da negociação em si.
+  const rows = contextFor(stored).rules.packages as PackageRow[];
+  const depth = stored.privateState.concessionDepth;
+  const terms = termsAt(rows, depth);
+  const baseline = stored.aluminum
+    ? stored.aluminum.blueprint.ofertaInicialComprador
+    : offerDefaults;
+  result.suggestedOffer = {
+    ...baseline,
+    precoUnitario: priceAt(rows, depth),
+    volumeMinimoMensal: Math.round(terms.volumeMinimoMensal),
+    duracaoMeses: Math.max(12, Math.round(terms.duracaoMeses)),
+    forecastCongeladoDias: Math.max(30, Math.round(terms.forecastCongeladoDias)),
+    pagamentoDias: Math.round(terms.pagamentoDias),
+    contrapartidas: stored.estadoPublico.ofertaPublica.contrapartidas.join("; "),
+  };
   return structuredClone(result);
 }
 export function makeMessage(

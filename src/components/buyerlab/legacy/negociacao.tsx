@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
   ArrowRight,
@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useRun } from "@/simulation/use-run";
 
 export function LegacyNegotiationPage({ runId }: { runId: string }) {
+  const navigate = useNavigate();
   const { snapshot, setSnapshot, loading, error, refresh, simulation } = useRun(runId);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -62,6 +63,12 @@ export function LegacyNegotiationPage({ runId }: { runId: string }) {
     try {
       const result = await simulation.sendBuyerMessage(runId, clean);
       setSnapshot(result.snapshot);
+      // Aceite explícito no chat ("aceito a proposta"...) encerra o treinamento no servidor e já
+      // devolve o relatório pronto — leva direto ao diagnóstico em vez de continuar no chat.
+      if (result.snapshot.relatorio) {
+        await navigate({ to: "/diagnostico/$runId", params: { runId } });
+        return;
+      }
     } catch (cause) {
       setText(clean);
       setLastFailedText(clean);
