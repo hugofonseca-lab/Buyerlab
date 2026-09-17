@@ -200,7 +200,7 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
               const enriched = await withFallback(
                 () => provider.classify(stored!, command.text),
                 () => Promise.resolve<typeof baseTags>([]),
-                8000,
+                15000,
               );
               if (enriched.value.length > 0) tags = enriched.value;
             }
