@@ -1,10 +1,7 @@
 import { Store } from "../src/server/store.server";
-const store = new Store();
+const store = await Store.create();
 try {
-  console.log(
-    "Migrations aplicadas:",
-    store.db.prepare("SELECT version FROM schema_migrations ORDER BY version").all(),
-  );
+  console.log("Migrations aplicadas com sucesso (ver migrations/*.sql).");
 } finally {
-  store.db.close();
+  await store.close();
 }

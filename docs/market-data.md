@@ -21,7 +21,7 @@ Faixas suportadas pela fórmula atual: USD/BRL 2,50–7,50 e alumínio 1.200–3
 
 ## Reprodutibilidade
 
-O snapshot público, com valores, datas, fontes e hash, fica persistido dentro da execução SQLite. Retomar ou repetir a mesma seed mantém esse snapshot. Nova variação de treinamento consulta o provedor novamente, respeitando o cache. Criar manualmente outra execução com o mesmo texto de seed em outro dia pode usar mercado diferente: a reprodução completa exige seed, configuração, versões **e snapshot**.
+O snapshot público, com valores, datas, fontes e hash, fica persistido dentro da execução no Postgres. Retomar ou repetir a mesma seed mantém esse snapshot. Nova variação de treinamento consulta o provedor novamente, respeitando o cache. Criar manualmente outra execução com o mesmo texto de seed em outro dia pode usar mercado diferente: a reprodução completa exige seed, configuração, versões **e snapshot**.
 
 Avaliações padronizadas usam o snapshot estático para manter comparabilidade. Relatórios de treinamento com dados externos são agrupados também pelo hash do mercado. Execuções existentes não são atualizadas retroativamente.
 

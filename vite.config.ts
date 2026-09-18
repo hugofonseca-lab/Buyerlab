@@ -7,7 +7,11 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  nitro: { preset: "node-server" },
+  // A Vercel define VERCEL=1 automaticamente ao rodar o build na própria infraestrutura, onde
+  // preset "vercel" (função serverless) é o correto. Localmente ("bun run build && bun run
+  // start", usado por e2e e por qualquer verificação manual fora da Vercel) continua com
+  // "node-server", sem mudar nada do fluxo existente.
+  nitro: { preset: process.env["VERCEL"] ? "vercel" : "node-server" },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

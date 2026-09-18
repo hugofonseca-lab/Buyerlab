@@ -20,7 +20,7 @@ Briefing, dossiê, notas privadas, negociação, oferta pública, eventos, propo
 
 ## Arquitetura e IA
 
-TanStack Start/React/TypeScript estrito, preservando frontend Lovable. API Node/Nitro, banco SQLite e migrations. Camadas separadas: blueprint, state engine, supplier actor, evaluator e coach. O servidor decide limites, estados, sorteios, viabilidade e pontos objetivos. OpenAI Responses API com SDK oficial e Structured Outputs faz atuação verbal e avaliação qualitativa. Mock mantém fluxo sem API. Chaves apenas no servidor. Uma chamada por turno e uma no encerramento controlam custo.
+TanStack Start/React/TypeScript estrito, preservando frontend Lovable. API Node/Nitro, banco Postgres (Supabase) e migrations. Camadas separadas: blueprint, state engine, supplier actor, evaluator e coach. O servidor decide limites, estados, sorteios, viabilidade e pontos objetivos. OpenAI Responses API com SDK oficial e Structured Outputs faz atuação verbal e avaliação qualitativa. Mock mantém fluxo sem API. Chaves apenas no servidor. Uma chamada por turno e uma no encerramento controlam custo.
 
 Sete estados emocionais, quatro perfis, matriz de transição, degraus e eventos condicionais combinam racionalidade e emoção. PRNG por seed e registros de sorteios permitem auditoria estrutural. Respostas da IA não podem criar descontos; o motor anexa termos autorizados.
 
@@ -34,7 +34,7 @@ Layout responsivo, navegação por teclado, foco visível, labels, erros textuai
 
 ## Viabilidade e execução
 
-Um cenário, sem serviços pagos obrigatórios, sem login complexo. Node com disco persistente oferece execução local simples. SQLite é adequado à demonstração em uma instância; escala serverless requer adaptador Postgres/Supabase ou equivalente. Instalar Node 22.16+ e Bun, executar `bun install --frozen-lockfile`, copiar `.env.example`, `bun run dev --port 8080`. Para produção local: `bun run build` e `bun run start`. Veja README.
+Um cenário, sem serviços pagos obrigatórios, sem login complexo. Postgres (Supabase, tier gratuito) e deploy serverless na Vercel; o mesmo banco serve local e produção. Instalar Node 22.16+ e Bun, criar um projeto Supabase, executar `bun install --frozen-lockfile`, copiar `.env.example` e preencher `DATABASE_URL`, `bun run dev --port 8080`. Para produção local: `bun run build` e `bun run start`. Veja README.
 
 ## Critérios do edital
 

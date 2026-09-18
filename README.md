@@ -14,7 +14,7 @@ A interface acompanha a [referência atualizada do Lovable no GitHub](docs/ui-re
 - Mercado v1 é uma referência educacional estática de 16/09/2026, não uma consulta real a cotações. Consulte [regras e fórmulas](docs/aluminum.md).
 - Links antigos com seed e sem `cenario=aluminum` continuam abrindo o cenário legado.
 
-Migrations aditivas: `bun run db:migrate` (também aplicadas automaticamente pela API). Preserve o banco e faça backup com o servidor parado antes de atualizar uma instalação existente.
+Migrations aditivas: `bun run db:migrate` (também aplicadas automaticamente a cada conexão via `Store.create()`). Faça backup pelo painel do Supabase antes de atualizar uma instalação existente.
 
 ## Cotações de mercado
 
@@ -30,22 +30,34 @@ Cada cenário de alumínio inclui um contrato hipotético/mockado com o forneced
 
 ## Executar
 
-Requisitos: **Node.js 22.16+** e **Bun 1.2.22+**. Node executa servidor e testes; Bun instala dependências. Não executar com `bun --bun`: o banco usa `node:sqlite`.
+Requisitos: **Node.js 22.16+**, **Bun 1.2.22+** e um projeto **Postgres (Supabase)**. Node executa servidor e testes; Bun instala dependências.
+
+Crie um projeto em [supabase.com](https://supabase.com), copie a connection string do **Transaction pooler** (Project Settings → Database, porta 6543) e coloque em `DATABASE_URL` no `.env`.
 
 ```sh
 bun install --frozen-lockfile
 cp .env.example .env
+# preencha DATABASE_URL no .env antes de continuar
 bun run dev --port 8080
 ```
 
-No PowerShell: `Copy-Item .env.example .env`. Abra `http://localhost:8080`. Mock funciona sem cadastro ou chave.
+No PowerShell: `Copy-Item .env.example .env`. Abra `http://localhost:8080`. Mock funciona sem cadastro ou chave de IA (`DATABASE_URL` continua obrigatória).
 
 ```sh
 bun run build
 bun run start
 ```
 
-Execute da raiz, mantendo `migrations/` disponível. A migration é aplicada no primeiro acesso à API. `.data/buyerlab.sqlite` persiste execuções, mensagens, estados, sorteios e relatórios. Backup: copie `.data/` com servidor parado. Nunca coloque o banco em `public/`.
+Execute da raiz, mantendo `migrations/` disponível. As migrations e o seed são aplicados automaticamente a cada conexão (`Store.create()`), de forma idempotente — não é preciso rodar nada manualmente antes do primeiro acesso, embora `bun run db:migrate` também funcione como conferência isolada. Backup: use as ferramentas de backup do próprio Supabase.
+
+## Deploy na Vercel
+
+1. No Supabase, garanta que `DATABASE_URL` (pooler de transação) esteja disponível.
+2. Importe o repositório na Vercel ([vercel.com/new](https://vercel.com/new)).
+3. Em Project Settings → Environment Variables, adicione `DATABASE_URL` e as demais variáveis da tabela abaixo que fizerem sentido (`BUYERLAB_PROVIDER`, `GEMINI_API_KEY`/`OPENAI_API_KEY`, `ALPHA_VANTAGE_API_KEY` etc.).
+4. Deploy. A Vercel detecta o preset `vercel` do Nitro automaticamente (`vite.config.ts` já seleciona esse preset quando a variável `VERCEL` está definida, o que a própria Vercel faz no build).
+
+Não é preciso configurar volume/disco: todo o estado fica no Postgres do Supabase.
 
 ### Ferramentas portáteis nesta máquina Windows
 
@@ -68,8 +80,9 @@ Em outra máquina, instale os requisitos normalmente.
 | `BUYERLAB_PROVIDER=gemini`      | Google Gemini como alternativa ao OpenAI, com o mesmo contrato de segurança e fallback                                                                                                                                                                                                                                                                 |
 | `GEMINI_API_KEY`                | Chave secreta; gratuita em [aistudio.google.com/apikey](https://aistudio.google.com/apikey)                                                                                                                                                                                                                                                            |
 | `GEMINI_MODEL`                  | Modelo da conta compatível com saída JSON estruturada; nenhum nome fixo no código. Validado com `gemini-3.1-flash-lite` (~5-25s por resposta). Modelos "thinking" (ex.: `gemini-3.6-flash`) responderam de forma correta mas muito mais lentos (20s+ até para "diga oi"); variantes "flash" não-lite tiveram picos de indisponibilidade (503) no teste |
-| `BUYERLAB_DB_PATH`              | Padrão `.data/buyerlab.sqlite`                                                                                                                                                                                                                                                                                                                         |
-| `PORT`                          | Porta de produção; exemplo 8080                                                                                                                                                                                                                                                                                                                        |
+| `DATABASE_URL`                  | Obrigatória. Connection string do Postgres/Supabase (pooler de transação, porta 6543)                                                                                                                                                                                                                                                                 |
+| `BUYERLAB_DB_SCHEMA`            | Opcional: schema alternativo (isolamento de testes/e2e). Padrão `public`                                                                                                                                                                                                                                                                              |
+| `PORT`                          | Porta local (`bun run start`); a Vercel gerencia a porta sozinha em produção                                                                                                                                                                                                                                                                          |
 | `CHROME_PATH`                   | Opcional: Chrome local nos testes E2E                                                                                                                                                                                                                                                                                                                  |
 | `BUYERLAB_MARKET_PROVIDER=live` | Mercado do benchmark de negociação consultado no servidor; `static` para ensaio offline                                                                                                                                                                                                                                                                |
 | `METALS_DEV_API_KEY`            | Opcional: conector de alumínio do benchmark com chave própria, exclusivamente no servidor                                                                                                                                                                                                                                                              |
@@ -94,7 +107,7 @@ bun run build
 bun run test:e2e
 ```
 
-E2E inicia build em modo mock e usa `.data/e2e.sqlite`. Não testar contra servidor com dados reais. Windows com Chrome instalado: `$env:CHROME_PATH='C:/Program Files (x86)/Google/Chrome/Application/chrome.exe'`.
+E2E inicia build em modo mock e usa o schema Postgres `e2e` (isolado do `public`). Não testar contra servidor com dados reais. Windows com Chrome instalado: `$env:CHROME_PATH='C:/Program Files (x86)/Google/Chrome/Application/chrome.exe'`.
 
 ## Demonstrar
 
@@ -106,6 +119,6 @@ Abra `/configurar?modo=treinamento&perfil=colaborativo&seed=DEMO2026`. Leia o do
 
 ## Limitações
 
-Uma instância Node com disco persistente; não funciona como banco durável em Workers ou filesystem serverless efêmero. Frontend Lovable preservado; publicação no Cloudflare do Lovable exige adaptador compatível e não foi realizada. Classificação heurística pode errar intenção. Seed reproduz condições, não texto da IA. Fronteira comercial simplificada, custo direto sem monetizar capital de giro/estoque/risco de parada. Não certifica pessoas. Integração OpenAI real requer credenciais e validação na conta do usuário.
+Serverless (Vercel) com múltiplas instâncias compartilha o Postgres corretamente, mas a serialização por sessão em memória (`api.server.ts`) só protege dentro de uma instância — ver [Arquitetura](docs/architecture.md). Frontend Lovable preservado. Classificação heurística pode errar intenção. Seed reproduz condições iniciais do cenário, não o texto nem a trajetória de preço da IA. Fronteira comercial simplificada, custo direto sem monetizar capital de giro/estoque/risco de parada. Não certifica pessoas. Integração OpenAI/Gemini real requer credenciais e validação na conta do usuário.
 
 O BuyerLab é uma simulação educacional baseada em modelos simplificados de comportamento. Seus resultados não substituem análise profissional nem preveem integralmente o comportamento humano.

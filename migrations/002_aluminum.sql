@@ -1,9 +1,9 @@
 -- Additive: legacy execution payloads and report URLs remain intact.
-CREATE TABLE IF NOT EXISTS materials(id TEXT PRIMARY KEY, payload TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS scenario_templates(id TEXT NOT NULL, version TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(id,version));
-CREATE TABLE IF NOT EXISTS market_snapshots(id TEXT PRIMARY KEY, payload TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS scenario_instances(id TEXT PRIMARY KEY, payload TEXT NOT NULL, generation_metadata TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS supplier_candidates(id TEXT PRIMARY KEY, scenario_instance_id TEXT NOT NULL REFERENCES scenario_instances(id), public_payload TEXT NOT NULL, private_payload TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS supplier_switches(id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES simulation_runs(id), payload TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS materials(id text PRIMARY KEY, payload text NOT NULL);
+CREATE TABLE IF NOT EXISTS scenario_templates(id text NOT NULL, version text NOT NULL, payload text NOT NULL, PRIMARY KEY(id,version));
+CREATE TABLE IF NOT EXISTS market_snapshots(id text PRIMARY KEY, payload text NOT NULL);
+CREATE TABLE IF NOT EXISTS scenario_instances(id text PRIMARY KEY, payload text NOT NULL, generation_metadata text NOT NULL);
+CREATE TABLE IF NOT EXISTS supplier_candidates(id text PRIMARY KEY, scenario_instance_id text NOT NULL REFERENCES scenario_instances(id), public_payload text NOT NULL, private_payload text NOT NULL);
+CREATE TABLE IF NOT EXISTS supplier_switches(id text PRIMARY KEY, run_id text NOT NULL REFERENCES simulation_runs(id), payload text NOT NULL);
 CREATE INDEX IF NOT EXISTS simulation_runs_owner_status ON simulation_runs(owner,status,created_at);
-INSERT OR IGNORE INTO schema_migrations VALUES(2, datetime('now'));
+INSERT INTO schema_migrations(version) VALUES(2) ON CONFLICT DO NOTHING;

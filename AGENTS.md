@@ -13,7 +13,7 @@
 
 ## BuyerLab
 
-- Stack: TanStack Start, React 19, TypeScript estrito, Tailwind 4, Nitro Node, SQLite.
+- Stack: TanStack Start, React 19, TypeScript estrito, Tailwind 4, Nitro (preset `vercel` em deploy na Vercel, `node-server` local), Postgres (Supabase) via `postgres` (postgres.js).
 - Requisitos: Node >=22.16, Bun >=1.2.22. Instalar: `bun install --frozen-lockfile`.
 - Dev: `bun run dev --port 8080`. Produção: `bun run build`, `bun run start`.
 - Qualidade: `bun run lint`, `bun run typecheck`, `bun run test`, `bun run test:e2e`.
@@ -25,7 +25,7 @@
 - Blueprint: `scenario.server.ts` + `rules.server.ts`; versionar mudanças de condições/matriz.
 - Engine decide estados emocionais, eventos, o acordo final e os pontos objetivos **a partir de tags** (BuyerActionTag) e é sempre quem define os **limites** de concessão do turno (`ConcessionEnvelope`, `concession.server.ts`: piso, direção permitida e passo máximo, a partir de confiança/reciprocidade acumuladas — substitui o antigo degrau/escada discreta por uma profundidade contínua 0..1). O ritmo de concessão (`rules.concessionPacing`) é por dificuldade: sem isso, um roteiro bem argumentado chegava ao piso em poucas mensagens em qualquer dificuldade, tornando o limite de turnos quase irrelevante. Ao alterar esses valores, ajustar os testes que dependem de quantos turnos são necessários para atingir o piso (`tests/variations.test.ts`, `tests/aluminum.test.ts`). Dentro desses limites, o provedor (IA real ou mock, via `reply()`) propõe o preço do turno; o motor sempre valida/clampa essa proposta (`validateActor`/`commitOffer`) antes de gravar a posição pública — nunca aplica um valor não verificado. Prazo, volume, forecast e pagamento continuam exclusivamente derivados pelo motor a partir do preço final; a IA nunca os propõe nem autora contrapartidas. Quem decide é sempre `advanceState`/`commitOffer` no motor; a IA nunca decide fora dos limites.
 - Alteração de engine exige testes de seed, viabilidade, segurança, idempotência e avaliação.
-- SQLite exige um processo Node e disco persistente; não usar em Workers ou filesystem efêmero.
+- `DATABASE_URL` (Supabase, pooler de transação porta 6543) é obrigatória; `Store.create()` aplica migrations/seed a cada conexão (idempotente). `BUYERLAB_DB_SCHEMA` isola testes/e2e num schema descartável (`store.destroy()` remove ao final); produção usa o schema `public`.
 - Migrations em `migrations/` aplicadas ao iniciar a API. Banco sempre fora de `public/`.
 - Migração explícita: `bun run db:migrate`; preserve dados legados. Alumínio: `aluminum.server.ts`, `market.server.ts`, `sourcing-score.server.ts` e `docs/aluminum.md`.
 - Uma troca por execução, estados/conversas por fornecedor; benchmark e TCO no servidor. Sourcing integra os 60 pontos, sem aumentar a escala 100.

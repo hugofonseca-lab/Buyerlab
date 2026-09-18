@@ -29,4 +29,4 @@ Os contratos `ScenarioBlueprint`, `SupplierPrivateConfig`, `SimulationRun`, `Pub
 
 ## Privacidade e evolução
 
-Na versão 2, os dados fictícios são persistidos no SQLite do servidor. Configuração e estado privado não são enviados ao frontend. Sessão por cookie HttpOnly controla acesso; relatórios usam tokens próprios. A implementação local do protótipo foi substituída, mantendo as telas. Nenhuma chave secreta é utilizada pelo frontend.
+Na versão 2, os dados fictícios são persistidos no Postgres (Supabase) do servidor. Configuração e estado privado não são enviados ao frontend. Sessão por cookie HttpOnly controla acesso; relatórios usam tokens próprios. A implementação local do protótipo foi substituída, mantendo as telas. Nenhuma chave secreta é utilizada pelo frontend.

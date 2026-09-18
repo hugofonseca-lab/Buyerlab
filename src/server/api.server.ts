@@ -97,10 +97,10 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
     const json = (value: unknown, status = 200) =>
       new Response(JSON.stringify(value ?? null), { status, headers });
     try {
-      if (!store.rate("global", 300))
+      if (!(await store.rate("global", 300)))
         throw new ApiError(429, "RATE_LIMIT", "Muitas solicitações. Aguarde um minuto.");
       if (request.method === "GET" && url.pathname.startsWith("/api/reports/")) {
-        const report = store.report(url.pathname.slice("/api/reports/".length));
+        const report = await store.report(url.pathname.slice("/api/reports/".length));
         if (!report)
           throw new ApiError(404, "NOT_FOUND", "Relatório inexistente ou link expirado.");
         return json(report);
@@ -125,13 +125,13 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
         .map((s) => s.trim())
         .find((s) => s.startsWith("buyerlab_session="))
         ?.slice("buyerlab_session=".length);
-      const session = store.session(cookie);
+      const session = await store.session(cookie);
       if (session.token)
         headers.append(
           "Set-Cookie",
           `buyerlab_session=${session.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${url.protocol === "https:" ? "; Secure" : ""}`,
         );
-      if (!store.rate(session.hash, 60))
+      if (!(await store.rate(session.hash, 60)))
         throw new ApiError(
           429,
           "RATE_LIMIT",
@@ -141,11 +141,14 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
         if (url.pathname === "/api/session") return json({ ready: true });
         if (url.pathname === "/api/market-indicators")
           return json(await marketIndicators.getSnapshot());
-        if (url.pathname === "/api/history") return json(store.history(session.hash));
+        if (url.pathname === "/api/history") return json(await store.history(session.hash));
         if (url.pathname === "/api/history/summary")
-          return json(store.history(session.hash).groups);
+          return json((await store.history(session.hash)).groups);
         if (url.pathname.startsWith("/api/history/")) {
-          const historical = store.load(url.pathname.slice("/api/history/".length), session.hash);
+          const historical = await store.load(
+            url.pathname.slice("/api/history/".length),
+            session.hash,
+          );
           if (!historical?.relatorio)
             throw new ApiError(404, "NOT_FOUND", "Relatório não encontrado nesta sessão.");
           return json(historical.relatorio);
@@ -154,7 +157,7 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
           /^\/api\/simulations\/([^/]+)\/(suppliers|supplier-conversations|contrato)$/,
         );
         if (extra) {
-          const run = store.load(extra[1]!, session.hash);
+          const run = await store.load(extra[1]!, session.hash);
           if (!run) throw new ApiError(404, "NOT_FOUND", "Execução não encontrada.");
           return json(
             extra[2] === "suppliers"
@@ -165,7 +168,7 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
           );
         }
         const id = url.pathname.slice("/api/simulations/".length);
-        const stored = store.load(id, session.hash);
+        const stored = await store.load(id, session.hash);
         if (!stored)
           throw new ApiError(
             404,
@@ -196,7 +199,7 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
       const key = z.string().uuid().parse(request.headers.get("idempotency-key"));
       const fingerprint = digest(raw);
       const result = await serialized(session.hash, async () => {
-        const cached = store.cached(session.hash, key, fingerprint);
+        const cached = await store.cached(session.hash, key, fingerprint);
         if (cached.found) return cached.value;
         let stored: StoredRun | null = null;
         let value: unknown;
@@ -204,7 +207,7 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
           stored = createRun(command.config, await marketFor(command.config));
           value = stored.run;
         } else {
-          stored = store.load(command.runId, session.hash);
+          stored = await store.load(command.runId, session.hash);
           if (!stored)
             throw new ApiError(404, "NOT_FOUND", "Execução não encontrada ou não autorizada.");
           if (command.action === "message") {
@@ -322,10 +325,10 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
               );
           }
         }
-        store.transaction(() => {
-          store.save(stored!, session.hash);
-          if (command.action === "share") value = { token: store.share(stored!.run.id) };
-          store.remember(session.hash, key, fingerprint, value);
+        await store.transaction(async (trx) => {
+          await store.save(stored!, session.hash, trx);
+          if (command.action === "share") value = { token: await store.share(stored!.run.id, trx) };
+          await store.remember(session.hash, key, fingerprint, value, trx);
         });
         return value;
       });
@@ -356,8 +359,9 @@ export function createApi(store: Store, provider: SupplierProvider = configuredP
     }
   };
 }
-let handler: ReturnType<typeof createApi> | undefined;
-export function handleApi(request: Request): Promise<Response> {
-  handler ??= createApi(new Store());
+let handlerPromise: Promise<ReturnType<typeof createApi>> | undefined;
+export async function handleApi(request: Request): Promise<Response> {
+  handlerPromise ??= Store.create().then((store) => createApi(store));
+  const handler = await handlerPromise;
   return handler(request);
 }

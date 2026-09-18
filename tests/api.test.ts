@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { liveMarket } from "../src/server/live-market.server";
 import { marketIndicators } from "../src/server/market-indicators.server";
 import { STATIC_MARKET } from "../src/server/market.server";
@@ -7,20 +7,29 @@ import { createApi } from "../src/server/api.server";
 import { MockSimulationProvider, type SupplierProvider } from "../src/server/providers.server";
 import { offerDefaults } from "../src/domain/offer-defaults";
 import type { BuyerActionTag, CompetencyScore } from "../src/domain/types";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
-const paths: string[] = [];
+// Um schema Postgres descartável para todo o arquivo (não um por teste): contra um banco remoto
+// de verdade, criar/derrubar schema a cada teste é caro e, sob latência real, gerou deadlocks de
+// catálogo entre um DROP SCHEMA CASCADE e um CREATE TABLE concorrente de outro teste. Isolamento
+// entre testes continua garantido: cada `setup()` abre uma sessão nova (cookie/owner únicos) e
+// cada execução usa um UUID novo; nenhum teste depende de a tabela estar vazia.
+let sharedSchema = "";
+beforeAll(() => {
+  sharedSchema = `test_${crypto.randomUUID().replaceAll("-", "")}`;
+});
+afterAll(async () => {
+  const store = await Store.create(sharedSchema);
+  await store.destroy();
+});
 const stores: Store[] = [];
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
-  for (const store of stores.splice(0)) store.db.close();
-  for (const p of paths.splice(0)) rmSync(p, { recursive: true, force: true });
+  // Só fecha a conexão deste teste; o schema em si só é derrubado uma vez, no afterAll.
+  for (const store of stores.splice(0)) await store.close();
 });
-function setup(path = ":memory:", provider = new MockSimulationProvider()) {
-  const store = new Store(path);
+async function setup(schema = sharedSchema, provider = new MockSimulationProvider()) {
+  const store = await Store.create(schema);
   stores.push(store);
   const api = createApi(store, provider);
   let cookie = "";
@@ -63,7 +72,7 @@ describe("API persistente e autorizada", () => {
       provider: "BuyerLab live v1",
     };
     const market = vi.spyOn(liveMarket, "getSnapshot").mockResolvedValue(snapshot);
-    const { call } = setup();
+    const { call } = await setup();
     const started = await call({
       action: "start",
       config: { ...config, scenarioType: "aluminum" },
@@ -127,14 +136,14 @@ describe("API persistente e autorizada", () => {
       warnings: [],
     };
     const spy = vi.spyOn(marketIndicators, "getSnapshot").mockResolvedValue(snapshot as never);
-    const { call } = setup();
+    const { call } = await setup();
     const result = await call(null, "/api/market-indicators");
     expect(result.status).toBe(200);
     expect(result.body).toEqual(snapshot);
     expect(spy).toHaveBeenCalledTimes(1);
   });
   it("alumínio: troca idempotente, retomada, histórico privado e replay", async () => {
-    const { call, store } = setup();
+    const { call, store } = await setup();
     const started = await call({
       action: "start",
       config: { ...config, scenarioType: "aluminum", materialId: "6061-T6" },
@@ -167,7 +176,9 @@ describe("API persistente e autorizada", () => {
     const resumed = await call(null, `/api/simulations/${id}`);
     expect(resumed.body.aluminum.instance).toEqual(instance);
     expect(resumed.body.aluminum.switchCount).toBe(1);
-    expect(store.db.prepare("SELECT COUNT(*) AS n FROM supplier_switches").get()).toEqual({ n: 1 });
+    expect(
+      (await store.sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM supplier_switches`)[0],
+    ).toEqual({ n: 1 });
     await call({
       action: "finalize",
       runId: id,
@@ -192,7 +203,7 @@ describe("API persistente e autorizada", () => {
   for (const modo of ["treinamento", "avaliacao"])
     for (const perfil of ["colaborativo", "analitico", "dominante", "defensivo"])
       it(`jornada API ${modo}/${perfil}: acordo, replay e isolamento de escrita`, async () => {
-        const { call } = setup();
+        const { call } = await setup();
         const started = await call({ action: "start", config: { ...config, modo, perfil } });
         const id = started.body.id;
         const messages = [
@@ -246,10 +257,7 @@ describe("API persistente e autorizada", () => {
         }
       });
   it("cria, retoma em outro store, idempotência e isolamento", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "buyerlab-"));
-    paths.push(dir);
-    const path = join(dir, "db.sqlite");
-    const { call } = setup(path);
+    const { call, store } = await setup();
     const start = await call({ action: "start", config });
     expect(start.status).toBe(200);
     const id = start.body.id;
@@ -265,14 +273,14 @@ describe("API persistente e autorizada", () => {
     expect(a.body).toEqual(b.body);
     expect(a.body.snapshot.estadoPublico.turno).toBe(1);
     expect((await call(body)).status).toBe(409);
-    const second = setup(path);
+    const second = await setup(store.schema);
     const resumed = await second.call(null, `/api/simulations/${id}`, undefined, start.cookie);
     expect(resumed.body.estadoPublico.turno).toBe(1);
     expect((await second.call(null, `/api/simulations/${id}`, undefined, "")).status).toBe(404);
     expect(JSON.stringify(resumed.body)).not.toMatch(/privateState|confianca|probabilidade|escada/);
   });
   it("aceite explícito no chat encerra o treinamento e já gera o relatório", async () => {
-    const { call } = setup();
+    const { call } = await setup();
     const start = await call({ action: "start", config });
     const id = start.body.id;
     await call({ action: "message", runId: id, text: "Olá", expectedTurn: 0 });
@@ -295,7 +303,7 @@ describe("API persistente e autorizada", () => {
     ).toBe(409);
   });
   it("finaliza uma vez, avalia, compartilha só relatório e repete seeds", async () => {
-    const { call } = setup();
+    const { call } = await setup();
     const start = await call({ action: "start", config });
     const id = start.body.id;
     expect((await call({ action: "evaluate", runId: id })).status).toBe(409);
@@ -322,7 +330,7 @@ describe("API persistente e autorizada", () => {
     expect(next.body.seed).not.toBe("TESTE");
   });
   it("valida entrada, aceite explícito, CSRF e limite de requisições", async () => {
-    const { call, api } = setup();
+    const { call, api } = await setup();
     const start = await call({ action: "start", config });
     const id = start.body.id;
     expect(
@@ -343,15 +351,20 @@ describe("API persistente e autorizada", () => {
         )
       ).status,
     ).toBe(403);
-    let last = 0;
-    for (let i = 0; i < 61; i++) last = (await call(null, `/api/simulations/${id}`)).status;
-    expect(last).toBe(429);
+    // Concorrente, não sequencial: contra um banco remoto de verdade, 61 chamadas sequenciais
+    // podem ultrapassar a janela fixa de 1 minuto do limitador (e reiniciar a contagem no meio do
+    // caminho) só por causa da latência de rede. Disparar tudo de uma vez garante que as 61
+    // caem na mesma janela, testando o limite em si em vez do relógio de parede do ambiente.
+    const statuses = await Promise.all(
+      Array.from({ length: 61 }, () => call(null, `/api/simulations/${id}`).then((r) => r.status)),
+    );
+    expect(statuses).toContain(429);
   });
   it("atrás de proxy reverso, valida origem por X-Forwarded-Proto sem afrouxar o CSRF", async () => {
     // O host publico chega correto via cabecalho Host padrao (refletido na propria URL da
     // requisicao); e o proxy (Cloudflare Tunnel, Railway...) so acrescenta X-Forwarded-Proto,
     // pois a conexao ate o Node e HTTP simples mesmo quando o publico acessa por https.
-    const { api } = setup();
+    const { api } = await setup();
     const proxied = (host: string, origin: string, forwardedProto?: string) =>
       api(
         new Request(`http://${host}/api/simulations`, {
@@ -380,7 +393,7 @@ describe("API persistente e autorizada", () => {
         throw Error("JSON inválido");
       }
     }
-    const { call } = setup(":memory:", new Broken());
+    const { call } = await setup(undefined, new Broken());
     const start = await call({ action: "start", config });
     const id = start.body.id;
     const result = await call({
@@ -412,7 +425,7 @@ describe("API persistente e autorizada", () => {
         return ["diagnostico", "pergunta_aberta"];
       }
     }
-    const { call } = setup(":memory:", new FakeAIProvider());
+    const { call } = await setup(undefined, new FakeAIProvider());
     const start = await call({ action: "start", config });
     const id = start.body.id;
     // Texto sem nenhuma palavra-chave do regex: classifyBuyerMessage retorna só "neutro".

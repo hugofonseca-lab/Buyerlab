@@ -1,5 +1,7 @@
 # Validação final — 15/09/2026
 
+> Nota (17/09/2026): este relatório é um retrato daquela execução específica; o número de testes, o preset do Nitro e o banco de dados mudaram desde então (ver [Arquitetura](architecture.md)). Em particular, a limitação de SQLite/instância única descrita no item 2 abaixo foi resolvida com a migração para Postgres (Supabase).
+
 ## Resultado
 
 MVP local demonstrável validado em modo mock, com persistência no servidor. Nenhum commit, envio externo, publicação ou submissão foi realizado.

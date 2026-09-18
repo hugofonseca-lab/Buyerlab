@@ -61,4 +61,4 @@ Histórico compara rubrica, dificuldade, modo, material, escala e avaliação IA
 
 ## Limitações
 
-Dados e comportamento simplificados; sem mercado ao vivo, autenticação multidevice ou verificação documental real. SQLite exige um processo Node e disco persistente. Uso real da OpenAI depende de chave/modelo no servidor e não é garantido pelo teste mock. O BuyerLab é uma simulação educacional baseada em modelos simplificados de comportamento. Seus resultados não substituem análise profissional nem preveem integralmente o comportamento humano.
+Dados e comportamento simplificados; sem mercado ao vivo, autenticação multidevice ou verificação documental real. Uso real da OpenAI/Gemini depende de chave/modelo no servidor e não é garantido pelo teste mock. O BuyerLab é uma simulação educacional baseada em modelos simplificados de comportamento. Seus resultados não substituem análise profissional nem preveem integralmente o comportamento humano.

@@ -4,7 +4,7 @@ Alumínio: configurações privadas de candidatos ficam no servidor. A troca val
 
 - Sessão: token criptográfico de 256 bits; cookie HttpOnly, SameSite=Strict, Secure em HTTPS, 30 dias; hash no banco.
 - Autorização: consultas incluem proprietário. Conhecer UUID não dá acesso.
-- Banco: SQLite exclusivo do servidor, fora de assets. Não suporta RLS; autorização é aplicada na API. Nenhuma leitura pública de estados, regras privadas ou sorteios.
+- Banco: Postgres (Supabase), exclusivo do servidor — a connection string nunca chega ao cliente. RLS não está habilitado; autorização é aplicada na API. Nenhuma leitura pública de estados, regras privadas ou sorteios.
 - Compartilhamento: ação explícita cria token de 256 bits, hash armazenado, validade de sete dias. Só relatório, sem notas ou conversa completa. Os trechos de evidência fazem parte do relatório compartilhado.
 - CSRF: POST exige JSON e Origin igual à aplicação. Respostas `no-store`, relatório sem indexação/referrer.
 - Entrada: Zod estrito, mensagens 2.000 caracteres, notas 8.000, corpo 16 KiB, turnos 8/10/12. Rate limit persistente: 300 solicitações globais/minuto, 60 por sessão/minuto.
@@ -15,7 +15,7 @@ Alumínio: configurações privadas de candidatos ficam no servidor. A troca val
 
 ## Operação e limites
 
-Não versionar `.env`, `.data`, cookies, tokens ou logs. HTTPS e permissões de disco restritas. Uma instância Node com volume persistente. Administrador do servidor consegue ler transcrições/notas no banco: “privado” significa isolado de outros participantes e do compartilhamento, não criptografado contra o operador.
+Não versionar `.env`, cookies, tokens ou logs. HTTPS obrigatório. Uma ou mais instâncias serverless (Vercel) compartilhando o mesmo banco (Supabase); a serialização por sessão em memória (`api.server.ts`) só vale dentro de uma instância — ver [Arquitetura](architecture.md). Administrador do banco consegue ler transcrições/notas: “privado” significa isolado de outros participantes e do compartilhamento, não criptografado contra o operador.
 
 Expiração do acesso não apaga registros. Retenção, exclusão individual, revogação antecipada de links, antiabuso distribuído e backup automatizado exigem evolução antes de uso público amplo. Não inserir informações reais/proprietárias.
 

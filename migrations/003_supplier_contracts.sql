@@ -1,3 +1,3 @@
 -- Additive: hypothetical/mocked current contract with the incumbent supplier, per scenario instance.
-CREATE TABLE IF NOT EXISTS supplier_contracts(id TEXT PRIMARY KEY, scenario_instance_id TEXT NOT NULL REFERENCES scenario_instances(id), payload TEXT NOT NULL);
-INSERT OR IGNORE INTO schema_migrations VALUES(3, datetime('now'));
+CREATE TABLE IF NOT EXISTS supplier_contracts(id text PRIMARY KEY, scenario_instance_id text NOT NULL REFERENCES scenario_instances(id), payload text NOT NULL);
+INSERT INTO schema_migrations(version) VALUES(3) ON CONFLICT DO NOTHING;
