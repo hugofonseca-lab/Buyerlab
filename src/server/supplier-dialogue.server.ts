@@ -28,6 +28,8 @@ export function mockDialogue(stored: StoredRun, tags: BuyerActionTag[]): string 
   const rng = createRng(stored.run.seed, `mockdialogo-${stored.estadoPublico.turno}`);
   const one = (variants: readonly string[]) => pick(rng, variants);
   const topics: string[] = [];
+  // else-if: uma mensagem de humano de verdade responde ao assunto mais relevante, não empilha
+  // qualidade+capacidade+pagamento+forecast todos juntos só porque a pergunta tocou em vários.
   if (/qualidade|defeito|otif|sla|garantia|cr[eé]dito/.test(text))
     topics.push(
       one([
@@ -38,14 +40,14 @@ export function mockDialogue(stored: StoredRun, tags: BuyerActionTag[]): string 
           ? ` ${rules.disclosures.operations}`
           : " Podemos discutir essas proteções no pacote final."),
     );
-  if (/capacidade|estoque|lead time|log[ií]stic|atraso|continuidade|prioridade/.test(text))
+  else if (/capacidade|estoque|lead time|log[ií]stic|atraso|continuidade|prioridade/.test(text))
     topics.push(
       one([
         "Para proteger a linha, precisamos alinhar a programação de entregas à previsão de consumo. Prioridade e estoque de segurança precisam constar do pacote; não são uma garantia automática de entrega.",
         "Capacidade e continuidade dependem de programação combinada com antecedência; prioridade de atendimento é algo que negociamos dentro do pacote, não um compromisso automático à parte.",
       ]),
     );
-  if (/pagamento|caixa|contrato|volume/.test(text) && can("interests"))
+  else if (/pagamento|caixa|contrato|volume/.test(text) && can("interests"))
     topics.push(
       `${rules.disclosures.interests} ` +
         one([
@@ -53,7 +55,7 @@ export function mockDialogue(stored: StoredRun, tags: BuyerActionTag[]): string 
           "Isso te ajuda a entender por que priorizamos previsibilidade — qual é o compromisso que vocês conseguem sustentar durante a vigência?",
         ]),
     );
-  if (/forecast|previsibilidade|previs[aã]o|custo/.test(text) && can("forecast"))
+  else if (/forecast|previsibilidade|previs[aã]o|custo/.test(text) && can("forecast"))
     topics.push(
       `${rules.disclosures.forecast} ` +
         one([
