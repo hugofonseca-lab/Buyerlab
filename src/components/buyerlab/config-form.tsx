@@ -40,6 +40,7 @@ export function ConfigForm({ instructor = false, defaults }: Props) {
   const scenarioType = defaults?.scenarioType ?? "aluminum";
   const [material] = useState(defaults?.materialId ?? "aleatorio");
   const [seed, setSeed] = useState(defaults?.seed ?? "");
+  const [buyerName, setBuyerName] = useState(defaults?.buyerName ?? "");
   useEffect(() => {
     if (!defaults?.seed) setSeed(randomSeed());
   }, [defaults?.seed]);
@@ -74,6 +75,7 @@ export function ConfigForm({ instructor = false, defaults }: Props) {
         ...(material !== "aleatorio"
           ? { materialId: material as import("@/domain/aluminum").MaterialId }
           : {}),
+        ...(buyerName.trim() ? { buyerName: buyerName.trim() } : {}),
       });
       await navigate({ to: "/preparacao/$runId", params: { runId: run.id } });
     } catch (cause) {
@@ -179,6 +181,19 @@ export function ConfigForm({ instructor = false, defaults }: Props) {
             </SelectContent>
           </Select>
         </Field>
+        <Field
+          label="Seu nome (opcional)"
+          hint="O fornecedor vai se dirigir a você pelo nome durante a negociação."
+        >
+          <Input
+            id="buyerName"
+            value={buyerName}
+            onChange={(event) => setBuyerName(event.target.value)}
+            maxLength={40}
+            placeholder="Ex.: Hugo"
+            className="h-11"
+          />
+        </Field>
         <div className="sm:col-span-2">
           <div className="flex items-end gap-2">
             <Field
@@ -254,6 +269,7 @@ function Field({
             Dificuldade: "dificuldade",
             "Perfil do fornecedor": "perfil",
             Urgência: "urgencia",
+            "Seu nome (opcional)": "buyerName",
             "Seed da simulação": "seed",
           }[label]
         }

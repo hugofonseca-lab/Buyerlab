@@ -153,13 +153,18 @@ export function createRun(
     );
     stored.estadoPublico.ofertaPublica = structuredClone(contextFor(stored).rules.initialOffer);
   }
+  const greetingName = config.buyerName?.trim();
+  const saudacao = greetingName ? `Bom dia, ${greetingName}.` : "Bom dia.";
+  const pergunta = greetingName
+    ? `Quais são as prioridades da Orion, ${greetingName}?`
+    : "Quais são as prioridades da Orion?";
   stored.mensagens.push(
     makeMessage(
       stored,
       "fornecedor",
       stored.aluminum
-        ? `Bom dia. Represento ${activeSupplier(stored)!.displayName}. Vamos negociar ${stored.aluminum.instance.material.name}, em BRL por tonelada. Consulte nossa proposta e as condições no painel. Quais são as prioridades da Orion?`
-        : `Bom dia. Sou Marina Costa, da Nexa Componentes. Nossa proposta para o Módulo K-17 é R$ ${rules.initialOffer.precoUnitario},00 por unidade. Precisamos tratar também das mudanças tardias de forecast. Quais são as prioridades da Orion?`,
+        ? `${saudacao} Represento ${activeSupplier(stored)!.displayName}. Vamos negociar ${stored.aluminum.instance.material.name}, em BRL por tonelada. Consulte nossa proposta e as condições no painel. ${pergunta}`
+        : `${saudacao} Sou Marina Costa, da Nexa Componentes. Nossa proposta para o Módulo K-17 é R$ ${rules.initialOffer.precoUnitario},00 por unidade. Precisamos tratar também das mudanças tardias de forecast. ${pergunta}`,
     ),
   );
   return stored;

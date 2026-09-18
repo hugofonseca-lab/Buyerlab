@@ -126,6 +126,8 @@ export interface RunConfig {
   perfil: SupplierProfile | "aleatorio";
   urgencia: Urgency;
   seed: string;
+  /** Opcional: primeiro nome do comprador, usado para o fornecedor se dirigir a ele pelo nome. */
+  buyerName?: string | undefined;
 }
 
 export interface SimulationRun {

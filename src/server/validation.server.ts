@@ -13,6 +13,13 @@ export const configSchema = z
       .min(1)
       .max(24)
       .regex(/^[A-Za-z0-9_-]+$/),
+    buyerName: z
+      .string()
+      .trim()
+      .min(1)
+      .max(40)
+      .regex(/^[\p{L}\s'-]+$/u)
+      .optional(),
   })
   .strict();
 const integer = (min: number, max: number) => z.number().int().min(min).max(max);
