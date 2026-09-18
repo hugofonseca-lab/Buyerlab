@@ -1,6 +1,4 @@
 import postgres from "postgres";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { createHash, randomBytes } from "node:crypto";
 import type { StoredRun } from "./model";
 import { blueprint } from "./scenario.server";
@@ -8,11 +6,10 @@ import { rules, deltas, profileWeights } from "./rules.server";
 import { ALUMINUM_TEMPLATE, MATERIALS } from "./aluminum.server";
 import { summarizeHistory } from "./history.server";
 import type { HistoryResponse } from "../domain/aluminum";
+import { MIGRATIONS } from "./migrations.server";
 
 export const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 export const opaque = () => randomBytes(32).toString("base64url");
-
-const MIGRATION_FILES = ["001_initial.sql", "002_aluminum.sql", "003_supplier_contracts.sql"];
 
 /**
  * Persistência em Postgres (Supabase). Cada `Store` fica sobre um schema Postgres isolado — o
@@ -43,8 +40,7 @@ export class Store {
     if (schema !== "public") await sql.unsafe(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
     // .simple() manda o arquivo inteiro (várias instruções) num único round-trip, em vez de uma
     // chamada por instrução — importante porque isso roda a cada Store.create() (todo cold start).
-    for (const file of MIGRATION_FILES)
-      await sql.unsafe(readFileSync(resolve("migrations", file), "utf8")).simple();
+    for (const migration of MIGRATIONS) await sql.unsafe(migration).simple();
     const store = new Store(sql, schema);
     await store.seed();
     return store;
