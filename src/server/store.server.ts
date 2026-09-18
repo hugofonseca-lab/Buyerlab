@@ -27,7 +27,9 @@ export class Store {
     readonly schema: string,
   ) {}
 
-  static async create(schema = process.env["BUYERLAB_DB_SCHEMA"] ?? "public"): Promise<Store> {
+  // "||", não "??": plataformas de deploy costumam deixar uma variável opcional não preenchida
+  // como string vazia em vez de omiti-la — precisa cair para "public" nesse caso também.
+  static async create(schema = process.env["BUYERLAB_DB_SCHEMA"] || "public"): Promise<Store> {
     const url = process.env["DATABASE_URL"];
     if (!url) throw new Error("DATABASE_URL não configurada.");
     const sql = postgres(url, {
@@ -74,15 +76,16 @@ export class Store {
 
   /** Só para testes: apaga o schema descartável inteiro e fecha a conexão. */
   async destroy(): Promise<void> {
-    if (this.schema !== "public") await this.sql.unsafe(`DROP SCHEMA IF EXISTS "${this.schema}" CASCADE`);
+    if (this.schema !== "public")
+      await this.sql.unsafe(`DROP SCHEMA IF EXISTS "${this.schema}" CASCADE`);
     await this.close();
   }
 
   async session(token: string | undefined): Promise<{ hash: string; token?: string }> {
     if (token && /^[\w-]{43}$/.test(token)) {
       const hash = digest(token);
-      const rows =
-        await this.sql`SELECT id FROM sessions WHERE id=${hash} AND expires_at>${Date.now()}`;
+      const rows = await this
+        .sql`SELECT id FROM sessions WHERE id=${hash} AND expires_at>${Date.now()}`;
       if (rows.length > 0) return { hash };
     }
     const next = opaque(),
@@ -247,7 +250,10 @@ export class Store {
     return rows[0]!.count <= limit;
   }
 
-  async share(runId: string, client: postgres.Sql | postgres.TransactionSql = this.sql): Promise<string> {
+  async share(
+    runId: string,
+    client: postgres.Sql | postgres.TransactionSql = this.sql,
+  ): Promise<string> {
     const token = opaque();
     await client`INSERT INTO share_tokens VALUES (${digest(token)}, ${runId}, ${Date.now() + 7 * 86400000})`;
     return token;
